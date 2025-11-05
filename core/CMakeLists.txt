@@ -3,9 +3,7 @@
 set(CORE_SOURCES
     # Graph components (MLX integration)
     graph/tensor.cpp
-    # graph/layers.cpp
-    # graph/attention.cpp
-    # graph/mlp.cpp
+    graph/layers.cpp
 
     # Runtime components
     # runtime/engine.cpp
