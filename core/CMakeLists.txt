@@ -12,8 +12,7 @@ set(CORE_SOURCES
     # runtime/memory.cpp
 
     # Tokenizer
-    # runtime/tokenizer/sentencepiece.cpp
-    # runtime/tokenizer/hf_tokenizers.cpp
+    runtime/tokenizer.cpp
 
     # KV cache
     # runtime/kv/arena.cpp
@@ -43,6 +42,7 @@ target_link_libraries(mlxr_core PUBLIC
     ${METALKIT_FRAMEWORK}
     ${ACCELERATE_FRAMEWORK}
     MLX::mlx
+    SentencePiece::sentencepiece
 )
 
 # Set C++17 standard

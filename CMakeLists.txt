@@ -45,6 +45,9 @@ find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 # Find MLX framework
 find_package(MLX REQUIRED)
 
+# Find SentencePiece for tokenization
+find_package(SentencePiece REQUIRED)
+
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/core)
 include_directories(${CMAKE_SOURCE_DIR}/daemon)
