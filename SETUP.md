@@ -40,31 +40,31 @@ cd MLXR
 
 ### 3. Set Up Python Environment
 
-#### Option A: Using venv (Recommended for simplicity)
+#### Option A: Using Conda (Recommended for ML work)
 
 ```bash
-# Create virtual environment
+# Using Make (easiest)
+make setup
+
+# Or manually
+conda env create -f environment.yml
+conda activate mlxr
+```
+
+#### Option B: Using venv (Alternative)
+
+```bash
+# Using Make
+make setup-venv
+
+# Or manually
 python3 -m venv venv
-
-# Activate it
 source venv/bin/activate
-
-# Install dependencies
 pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 
 # For development (includes testing, linting tools)
 pip install -r requirements-dev.txt
-```
-
-#### Option B: Using Conda
-
-```bash
-# Create environment from file
-conda env create -f environment.yml
-
-# Activate it
-conda activate mlxr
 ```
 
 ### 4. Install Pre-commit Hooks

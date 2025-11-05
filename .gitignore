@@ -103,6 +103,10 @@ htmlcov/
 .dmypy.json
 dmypy.json
 
+# Conda
+condaenv.*.requirements.txt
+.conda/
+
 # Node/React/Frontend
 node_modules/
 npm-debug.log*

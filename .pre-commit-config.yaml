@@ -37,5 +37,6 @@ repos:
     rev: v17.0.6
     hooks:
       - id: clang-format
-        types_or: [c++, c, objc, objcxx]
+        types_or: [c++, c]
+        files: \.(cpp|cc|cxx|hpp|h|c)$
         args: ['-style=Google']
