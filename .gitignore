@@ -59,6 +59,7 @@ cmake_install.cmake
 build/**/Makefile
 *.cmake
 !CMakeLists.txt
+!cmake/Find*.cmake
 
 # C/C++
 *.out

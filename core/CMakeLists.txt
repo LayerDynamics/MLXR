@@ -2,6 +2,7 @@
 
 set(CORE_SOURCES
     # Graph components (MLX integration)
+    graph/tensor.cpp
     # graph/layers.cpp
     # graph/attention.cpp
     # graph/mlp.cpp
@@ -27,29 +28,30 @@ set(CORE_SOURCES
 # Metal kernel library will be built separately via scripts/build_metal.sh
 # and linked as a resource
 
-# For now, create a minimal placeholder library
-# We'll populate this as we implement Phase 1
-
 # Create core library (will be static for now)
-# add_library(mlxr_core STATIC ${CORE_SOURCES})
+add_library(mlxr_core STATIC ${CORE_SOURCES})
 
-# target_include_directories(mlxr_core PUBLIC
-#     ${CMAKE_CURRENT_SOURCE_DIR}
-#     ${CMAKE_CURRENT_SOURCE_DIR}/graph
-#     ${CMAKE_CURRENT_SOURCE_DIR}/runtime
-# )
+target_include_directories(mlxr_core PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/graph
+    ${CMAKE_CURRENT_SOURCE_DIR}/runtime
+)
 
-# target_link_libraries(mlxr_core PUBLIC
-#     ${FOUNDATION_FRAMEWORK}
-#     ${METAL_FRAMEWORK}
-#     ${METALKIT_FRAMEWORK}
-#     ${ACCELERATE_FRAMEWORK}
-# )
+target_link_libraries(mlxr_core PUBLIC
+    ${FOUNDATION_FRAMEWORK}
+    ${METAL_FRAMEWORK}
+    ${METALKIT_FRAMEWORK}
+    ${ACCELERATE_FRAMEWORK}
+    MLX::mlx
+)
 
-# For Phase 0, just create subdirectory structure markers
-file(WRITE ${CMAKE_CURRENT_SOURCE_DIR}/graph/.gitkeep "")
+# Set C++17 standard
+set_property(TARGET mlxr_core PROPERTY CXX_STANDARD 17)
+set_property(TARGET mlxr_core PROPERTY CXX_STANDARD_REQUIRED ON)
+
+# Create subdirectory markers for future components
 file(WRITE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/metal/.gitkeep "")
 file(WRITE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/cpu/.gitkeep "")
 file(WRITE ${CMAKE_CURRENT_SOURCE_DIR}/runtime/.gitkeep "")
 
-message(STATUS "Core library structure created (implementation pending)")
+message(STATUS "Core library created with MLX tensor wrapper")

@@ -30,32 +30,20 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0 -DDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
 
+# Add cmake module path
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+
 # Find required frameworks
 find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
 find_library(METAL_FRAMEWORK Metal REQUIRED)
 find_library(METALKIT_FRAMEWORK MetalKit REQUIRED)
 find_library(ACCELERATE_FRAMEWORK Accelerate REQUIRED)
 
-# Try to find MLX (will provide more robust detection later)
-# For now, assume MLX is installed via pip and accessible
-set(MLX_INCLUDE_DIR "/opt/homebrew/lib/python3.11/site-packages/mlx/include" CACHE PATH "MLX include directory")
-set(MLX_LIBRARY_DIR "/opt/homebrew/lib/python3.11/site-packages/mlx/lib" CACHE PATH "MLX library directory")
+# Find Python (needed for MLX detection)
+find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 
-# Check if MLX paths exist
-if(EXISTS ${MLX_INCLUDE_DIR})
-    message(STATUS "Found MLX include directory: ${MLX_INCLUDE_DIR}")
-    include_directories(${MLX_INCLUDE_DIR})
-else()
-    message(WARNING "MLX include directory not found at ${MLX_INCLUDE_DIR}")
-    message(WARNING "You may need to set MLX_INCLUDE_DIR manually or install MLX via: pip install mlx")
-endif()
-
-if(EXISTS ${MLX_LIBRARY_DIR})
-    message(STATUS "Found MLX library directory: ${MLX_LIBRARY_DIR}")
-    link_directories(${MLX_LIBRARY_DIR})
-else()
-    message(WARNING "MLX library directory not found at ${MLX_LIBRARY_DIR}")
-endif()
+# Find MLX framework
+find_package(MLX REQUIRED)
 
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/core)
@@ -97,6 +85,8 @@ message(STATUS "  Build type:           ${CMAKE_BUILD_TYPE}")
 message(STATUS "  Architecture:         ${ARCH}")
 message(STATUS "  C++ Compiler:         ${CMAKE_CXX_COMPILER}")
 message(STATUS "  C++ Standard:         ${CMAKE_CXX_STANDARD}")
+message(STATUS "  Python:               ${Python3_EXECUTABLE}")
+message(STATUS "  MLX version:          ${MLX_VERSION}")
 message(STATUS "  Build tests:          ${BUILD_TESTS}")
 message(STATUS "  Build daemon:         ${BUILD_DAEMON}")
 message(STATUS "  Build tools:          ${BUILD_TOOLS}")
