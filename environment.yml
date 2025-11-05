@@ -1,0 +1,56 @@
+# Conda environment for MLXR development
+# Create with: conda env create -f environment.yml
+# Activate with: conda activate mlxr
+
+name: mlxr
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  # Python
+  - python=3.11
+
+  # Core ML dependencies
+  - pip
+  - numpy>=1.24.0
+  - scipy
+
+  # Build tools
+  - cmake>=3.20
+  - ninja
+
+  # Testing
+  - pytest>=7.0
+  - pytest-cov
+  - pytest-asyncio
+
+  # Development tools
+  - black
+  - ruff
+  - mypy
+
+  # Additional via pip
+  - pip:
+      # MLX framework (Apple Silicon only)
+      - mlx>=0.12.0
+      - mlx-lm>=0.8.0
+
+      # Tokenizers
+      - sentencepiece>=0.1.99
+      - tokenizers>=0.15.0
+      - tiktoken>=0.5.0
+
+      # Model handling
+      - safetensors>=0.4.0
+      - huggingface-hub>=0.20.0
+
+      # Server dependencies (for Phase 2+)
+      - fastapi>=0.108.0
+      - uvicorn[standard]>=0.25.0
+      - pydantic>=2.5.0
+      - pyyaml>=6.0
+
+      # Utilities
+      - tqdm
+      - rich

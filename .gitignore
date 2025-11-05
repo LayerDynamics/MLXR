@@ -56,7 +56,7 @@ cmake-build-*/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
-Makefile
+build/**/Makefile
 *.cmake
 !CMakeLists.txt
 

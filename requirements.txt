@@ -1,0 +1,54 @@
+# MLXR Python dependencies
+# Install with: pip install -r requirements.txt
+#
+# Note: Requires macOS with Apple Silicon (M1/M2/M3/M4)
+
+# Core ML framework
+mlx>=0.12.0
+mlx-lm>=0.8.0
+
+# Tokenizers
+sentencepiece>=0.1.99
+tokenizers>=0.15.0
+tiktoken>=0.5.0
+
+# Model handling
+safetensors>=0.4.0
+huggingface-hub>=0.20.0
+gguf>=0.6.0
+
+# Numerical computing
+numpy>=1.24.0
+scipy>=1.11.0
+
+# Server framework (Phase 2+)
+fastapi>=0.108.0
+uvicorn[standard]>=0.25.0
+pydantic>=2.5.0
+python-multipart>=0.0.6
+
+# Configuration
+pyyaml>=6.0
+toml>=0.10.2
+
+# CLI and utilities
+click>=8.1.0
+rich>=13.0.0
+tqdm>=4.66.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.21.0
+httpx>=0.25.0  # for API testing
+
+# Development tools
+black>=23.0.0
+ruff>=0.1.0
+mypy>=1.7.0
+pre-commit>=3.5.0
+
+# Type stubs
+types-PyYAML
+types-requests
+types-toml

@@ -1,0 +1,28 @@
+# Development dependencies for MLXR
+# Install with: pip install -r requirements-dev.txt
+# (This includes requirements.txt plus dev tools)
+
+-r requirements.txt
+
+# Additional development tools
+ipython>=8.18.0
+jupyter>=1.0.0
+notebook>=7.0.0
+
+# Code quality
+pylint>=3.0.0
+flake8>=6.1.0
+isort>=5.12.0
+
+# Documentation
+sphinx>=7.2.0
+sphinx-rtd-theme>=2.0.0
+myst-parser>=2.0.0
+
+# Profiling and debugging
+py-spy>=0.3.14
+memory-profiler>=0.61.0
+line-profiler>=4.1.0
+
+# Git hooks
+pre-commit>=3.5.0
