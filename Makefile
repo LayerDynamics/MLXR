@@ -148,6 +148,11 @@ status:
 		else \
 			echo "  ❌ cpp-httplib (run: brew install cpp-httplib)"; \
 		fi; \
+		if brew list googletest &> /dev/null; then \
+			echo "  ✓ googletest"; \
+		else \
+			echo "  ❌ googletest (run: brew install googletest)"; \
+		fi; \
 	else \
 		echo "  ❌ Homebrew not installed"; \
 		echo "     Install from: https://brew.sh"; \
@@ -162,7 +167,7 @@ install-deps:
 		exit 1; \
 	fi
 	@echo "Installing C++ dependencies..."
-	brew install sentencepiece nlohmann-json cpp-httplib
+	brew install sentencepiece nlohmann-json cpp-httplib googletest
 	@echo "Installing build tools (if not present)..."
 	brew install cmake ninja
 	@echo "Installing MLX (if not present)..."

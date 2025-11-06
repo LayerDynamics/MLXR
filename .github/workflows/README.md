@@ -30,6 +30,7 @@ This directory contains GitHub Actions workflows for continuous integration, tes
 - SentencePiece via Homebrew (for tokenization)
 - nlohmann-json via Homebrew (for JSON parsing)
 - cpp-httplib via Homebrew (for HTTP server)
+- googletest via Homebrew (for C++ unit tests)
 
 **Example:** Every push to a branch automatically:
 - Compiles Metal kernels
@@ -102,7 +103,7 @@ git push origin v1.0.0
 
 **Requirements:**
 - macOS 14 runner
-- MLX, SentencePiece, nlohmann-json, and cpp-httplib via Homebrew
+- MLX, SentencePiece, nlohmann-json, cpp-httplib, and googletest via Homebrew
 - ApacheBench for stress testing
 
 **Example Tests:**
@@ -208,6 +209,7 @@ curl http://127.0.0.1:11434/health
 - Ensure SentencePiece is installed: `brew list sentencepiece`
 - Ensure nlohmann-json is installed: `brew list nlohmann-json`
 - Ensure cpp-httplib is installed: `brew list cpp-httplib`
+- Ensure googletest is installed: `brew list googletest`
 
 **Daemon fails to start:**
 - Check for port conflicts: `lsof -i :11434`

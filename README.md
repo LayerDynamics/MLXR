@@ -67,7 +67,7 @@ The following Homebrew packages are required:
 
 ```bash
 # Install all dependencies at once
-brew install cmake ninja mlx sentencepiece nlohmann-json cpp-httplib
+brew install cmake ninja mlx sentencepiece nlohmann-json cpp-httplib googletest
 
 # Or install individually
 brew install cmake          # Build system
@@ -76,6 +76,7 @@ brew install mlx            # Apple's ML framework
 brew install sentencepiece  # Tokenization library
 brew install nlohmann-json  # JSON for C++
 brew install cpp-httplib    # HTTP server library
+brew install googletest     # C++ testing framework
 ```
 
 ## Project Status

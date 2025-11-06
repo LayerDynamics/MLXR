@@ -70,7 +70,7 @@ jobs:
       - name: Install and cache Homebrew dependencies
         uses: tecolicom/actions-use-homebrew-tools@v1
         with:
-          tools: cmake ninja mlx sentencepiece nlohmann-json cpp-httplib
+          tools: cmake ninja mlx sentencepiece nlohmann-json cpp-httplib googletest
           cache: yes
 
       - name: Setup ccache
@@ -132,7 +132,7 @@ jobs:
       - name: Install runtime dependencies
         uses: tecolicom/actions-use-homebrew-tools@v1
         with:
-          tools: mlx sentencepiece nlohmann-json cpp-httplib
+          tools: mlx sentencepiece nlohmann-json cpp-httplib googletest
           cache: yes
 
       - name: Download Metal libraries

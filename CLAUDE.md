@@ -467,7 +467,7 @@ See [app/ui/COMPONENTS.md](app/ui/COMPONENTS.md) for complete component document
 **Homebrew Dependencies:**
 ```bash
 # Install system dependencies
-brew install cmake ninja mlx sentencepiece nlohmann-json cpp-httplib
+brew install cmake ninja mlx sentencepiece nlohmann-json cpp-httplib googletest
 
 # Or use the Makefile target
 make install-deps
@@ -478,6 +478,7 @@ Required packages:
 - `sentencepiece` - Tokenization library (required by core/runtime/tokenizer)
 - `nlohmann-json` - JSON library for C++ (required by daemon)
 - `cpp-httplib` - HTTP server library (required by daemon/server)
+- `googletest` - C++ testing framework (required by tests)
 
 **Frontend:**
 - Node.js 18+ + Yarn for React frontend
