@@ -175,9 +175,10 @@ int main() {
 
   // Initialize model registry
   std::cout << "Initializing model registry..." << std::endl;
-  std::string registry_dir =
-      std::string(home) + "/Library/Application Support/MLXRunner";
-  std::string registry_path = registry_dir + "/models.db";
+  // Use std::filesystem::path for cross-platform correctness
+  std::filesystem::path registry_dir =
+      std::filesystem::path(home) / "Library" / "Application Support" / "MLXRunner";
+  std::filesystem::path registry_path = registry_dir / "models.db";
 
   // Create registry directory if it doesn't exist (secure, no shell injection)
   try {
@@ -189,17 +190,17 @@ int main() {
   }
 
   auto registry =
-      std::make_shared<registry::ModelRegistry>(registry_path, true);
+      std::make_shared<registry::ModelRegistry>(registry_path.string(), true);
 
   if (!registry->initialize()) {
     std::cerr << "Failed to initialize model registry" << std::endl;
     return 1;
   }
-  std::cout << "Model registry initialized at: " << registry_path << std::endl;
+  std::cout << "Model registry initialized at: " << registry_path.string() << std::endl;
 
   // Scan and register models from disk
-  std::string models_dir = std::string(home) + "/models/llm";
-  scan_and_register_models(*registry, models_dir);
+  std::filesystem::path models_dir = std::filesystem::path(home) / "models" / "llm";
+  scan_and_register_models(*registry, models_dir.string());
 
   // Display registered models
   auto registered_models = registry->list_models();
@@ -220,11 +221,11 @@ int main() {
 
   // Load model and tokenizer
   std::cout << "Loading TinyLlama model..." << std::endl;
-  std::string model_dir = std::string(home) + "/models/llm/tinyllama-1.1b";
-  std::string tokenizer_path = model_dir + "/tokenizer.model";
+  std::filesystem::path model_dir = std::filesystem::path(home) / "models" / "llm" / "tinyllama-1.1b";
+  std::filesystem::path tokenizer_path = model_dir / "tokenizer.model";
 
   // Load model
-  auto model = graph::load_llama_model(model_dir);
+  auto model = graph::load_llama_model(model_dir.string());
   if (!model) {
     std::cerr << "Failed to load model. Running in mock mode (no inference)."
               << std::endl;
@@ -233,7 +234,7 @@ int main() {
   // Load tokenizer
   std::shared_ptr<runtime::Tokenizer> tokenizer;
   try {
-    tokenizer = runtime::create_tokenizer(tokenizer_path);
+    tokenizer = runtime::create_tokenizer(tokenizer_path.string());
     std::cout << "Tokenizer loaded successfully" << std::endl;
   } catch (const std::exception& e) {
     std::cerr << "Failed to load tokenizer: " << e.what() << std::endl;

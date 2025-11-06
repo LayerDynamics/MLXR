@@ -7,6 +7,22 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
 /**
+ * Regular expressions for markdown parsing
+ *
+ * HEADING_PATTERN: Matches markdown headings (# through ######)
+ * - Uses [^\r\n]+ instead of .+ to prevent ReDoS (exponential backtracking)
+ * - Safe for use with untrusted user input
+ * - Pattern without 'g' flag to avoid shared state issues
+ */
+const HEADING_PATTERN = /^(#{1,6})\s+([^\r\n]+)$/m
+
+/**
+ * Create a new heading regex with global flag for iteration
+ * Returns a fresh regex instance to avoid lastIndex state issues
+ */
+const createHeadingRegex = (): RegExp => new RegExp(HEADING_PATTERN.source, 'gm')
+
+/**
  * Markdown rendering options
  */
 export interface MarkdownOptions {
@@ -183,8 +199,7 @@ export function extractHeadings(markdown: string): Array<{
   text: string
   id: string
 }> {
-  // Fixed ReDoS vulnerability: Use [^\r\n]+ instead of .+ to prevent exponential backtracking
-  const headingRegex = /^(#{1,6})\s+([^\r\n]+)$/gm
+  const headingRegex = createHeadingRegex()
   const headings: Array<{ level: number; text: string; id: string }> = []
   let match: RegExpExecArray | null
 
@@ -297,8 +312,8 @@ export function truncateMarkdown(
 export function markdownToFormattedText(markdown: string): string {
   let text = markdown
 
-  // Convert headings (Fixed ReDoS: Use [^\r\n]+ instead of .+ to prevent exponential backtracking)
-  text = text.replace(/^#{1,6}\s+([^\r\n]+)$/gm, '\n$1\n')
+  // Convert headings (uses shared HEADING_PATTERN to keep regexes in sync)
+  text = text.replace(createHeadingRegex(), '\n$2\n')
 
   // Convert bold
   text = text.replace(/\*\*([^*]+)\*\*/g, '$1')

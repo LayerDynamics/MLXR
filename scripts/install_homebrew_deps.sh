@@ -2,7 +2,8 @@
 # Install Homebrew dependencies for MLXR
 # This script is used by both the Makefile and CI/CD workflows
 
-set -e  # Exit on error
+# Strict mode: exit on error, undefined variables, and pipe failures
+set -euo pipefail
 
 # Color output
 RED='\033[0;31m'
