@@ -1,0 +1,367 @@
+#!/usr/bin/env python3
+"""
+MLXR Command Line Interface
+Interact with mlxrunnerd daemon for model management and generation
+"""
+
+import argparse
+import json
+import sys
+import requests
+from pathlib import Path
+from typing import Optional, Dict, Any
+import time
+
+
+class MLXRClient:
+    """Client for mlxrunnerd daemon API."""
+
+    def __init__(self, base_url: str = "http://localhost:11434"):
+        self.base_url = base_url.rstrip("/")
+
+    def _request(self, method: str, endpoint: str, **kwargs) -> requests.Response:
+        """Make HTTP request to daemon."""
+        url = f"{self.base_url}{endpoint}"
+        try:
+            resp = requests.request(method, url, **kwargs, timeout=30)
+            resp.raise_for_status()
+            return resp
+        except requests.exceptions.ConnectionError:
+            print(f"ERROR: Cannot connect to daemon at {self.base_url}", file=sys.stderr)
+            print("Is mlxrunnerd running?", file=sys.stderr)
+            sys.exit(1)
+        except requests.exceptions.Timeout:
+            print(f"ERROR: Request timed out", file=sys.stderr)
+            sys.exit(1)
+        except requests.exceptions.HTTPError as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            if e.response is not None:
+                try:
+                    error_data = e.response.json()
+                    print(f"Details: {error_data.get('error', 'Unknown error')}", file=sys.stderr)
+                except:
+                    pass
+            sys.exit(1)
+
+    def health(self) -> Dict[str, Any]:
+        """Check daemon health."""
+        resp = self._request("GET", "/health")
+        return resp.json()
+
+    def list_models(self) -> Dict[str, Any]:
+        """List available models."""
+        resp = self._request("GET", "/v1/models")
+        return resp.json()
+
+    def generate(self, model: str, prompt: str, **kwargs) -> None:
+        """Generate completion (streaming)."""
+        data = {
+            "model": model,
+            "prompt": prompt,
+            **kwargs
+        }
+
+        resp = self._request("POST", "/api/generate", json=data, stream=True)
+
+        for line in resp.iter_lines():
+            if line:
+                chunk = json.loads(line)
+                if "response" in chunk:
+                    print(chunk["response"], end="", flush=True)
+                if chunk.get("done", False):
+                    print()  # Newline at end
+                    if "eval_count" in chunk:
+                        tokens = chunk["eval_count"]
+                        duration_ms = chunk.get("eval_duration", 0) / 1_000_000
+                        if duration_ms > 0:
+                            tps = tokens / (duration_ms / 1000)
+                            print(f"\nGenerated {tokens} tokens in {duration_ms:.0f}ms ({tps:.1f} tok/s)",
+                                  file=sys.stderr)
+                    break
+
+    def chat(self, model: str, messages: list, **kwargs) -> None:
+        """Chat completion (streaming)."""
+        data = {
+            "model": model,
+            "messages": messages,
+            **kwargs
+        }
+
+        resp = self._request("POST", "/api/chat", json=data, stream=True)
+
+        for line in resp.iter_lines():
+            if line:
+                chunk = json.loads(line)
+                if "message" in chunk and "content" in chunk["message"]:
+                    print(chunk["message"]["content"], end="", flush=True)
+                if chunk.get("done", False):
+                    print()
+                    break
+
+    def pull_model(self, name: str) -> None:
+        """Pull model from registry."""
+        data = {"name": name, "stream": True}
+        resp = self._request("POST", "/api/pull", json=data, stream=True)
+
+        last_progress = 0
+        for line in resp.iter_lines():
+            if line:
+                chunk = json.loads(line)
+                if "status" in chunk:
+                    status = chunk["status"]
+                    if "total" in chunk and "completed" in chunk:
+                        total = chunk["total"]
+                        completed = chunk["completed"]
+                        progress = int((completed / total) * 100)
+                        if progress > last_progress:
+                            print(f"\r{status}: {progress}%", end="", flush=True)
+                            last_progress = progress
+                    else:
+                        print(f"\r{status}", end="", flush=True)
+
+                if chunk.get("status") == "success":
+                    print("\n✓ Model pulled successfully")
+                    break
+
+    def create_model(self, name: str, modelfile: Path) -> None:
+        """Create custom model from Modelfile."""
+        with open(modelfile) as f:
+            modelfile_content = f.read()
+
+        data = {
+            "name": name,
+            "modelfile": modelfile_content,
+            "stream": False
+        }
+
+        resp = self._request("POST", "/api/create", json=data)
+        result = resp.json()
+        print(f"✓ Model '{name}' created successfully")
+
+    def show_model(self, name: str) -> None:
+        """Show model information."""
+        data = {"name": name}
+        resp = self._request("POST", "/api/show", json=data)
+        info = resp.json()
+
+        print(f"Model: {info.get('modelfile', name)}")
+        if "parameters" in info:
+            print("\nParameters:")
+            for key, value in info["parameters"].items():
+                print(f"  {key}: {value}")
+
+        if "template" in info:
+            print(f"\nTemplate:\n{info['template']}")
+
+    def delete_model(self, name: str) -> None:
+        """Delete a model."""
+        data = {"name": name}
+        self._request("DELETE", "/api/delete", json=data)
+        print(f"✓ Model '{name}' deleted")
+
+
+def cmd_health(args):
+    """Health check command."""
+    client = MLXRClient(args.host)
+    health = client.health()
+    print(f"Status: {health.get('status', 'unknown')}")
+    if "uptime_seconds" in health:
+        print(f"Uptime: {health['uptime_seconds']}s")
+    if "loaded_models" in health:
+        models = health["loaded_models"]
+        print(f"Loaded models: {', '.join(models) if models else 'none'}")
+
+
+def cmd_list(args):
+    """List models command."""
+    client = MLXRClient(args.host)
+    result = client.list_models()
+
+    models = result.get("data", [])
+    if not models:
+        print("No models available")
+        return
+
+    print(f"{'NAME':<30} {'SIZE':<15} {'MODIFIED':<20}")
+    print("-" * 65)
+
+    for model in models:
+        name = model.get("id", "unknown")
+        size = model.get("size", 0)
+        size_str = f"{size / 1024**3:.1f} GB" if size > 0 else "unknown"
+        modified = model.get("created", "unknown")
+
+        print(f"{name:<30} {size_str:<15} {modified:<20}")
+
+
+def cmd_run(args):
+    """Run generation command."""
+    client = MLXRClient(args.host)
+
+    if args.interactive:
+        # Interactive chat mode
+        messages = []
+        print(f"Chat with {args.model}")
+        print("Type 'exit' or Ctrl+C to quit\n")
+
+        while True:
+            try:
+                user_input = input("You: ")
+                if user_input.lower() in ["exit", "quit"]:
+                    break
+
+                messages.append({"role": "user", "content": user_input})
+                print("Assistant: ", end="", flush=True)
+                client.chat(args.model, messages)
+
+            except KeyboardInterrupt:
+                print("\nExiting...")
+                break
+            except EOFError:
+                break
+
+    else:
+        # Single prompt
+        if args.prompt:
+            prompt = args.prompt
+        elif not sys.stdin.isatty():
+            # Read from stdin
+            prompt = sys.stdin.read()
+        else:
+            print("ERROR: No prompt provided. Use --prompt or pipe input.", file=sys.stderr)
+            sys.exit(1)
+
+        kwargs = {}
+        if args.temperature is not None:
+            kwargs["temperature"] = args.temperature
+        if args.max_tokens:
+            kwargs["max_tokens"] = args.max_tokens
+
+        client.generate(args.model, prompt, **kwargs)
+
+
+def cmd_pull(args):
+    """Pull model command."""
+    client = MLXRClient(args.host)
+    client.pull_model(args.model)
+
+
+def cmd_create(args):
+    """Create model command."""
+    client = MLXRClient(args.host)
+    modelfile = Path(args.modelfile)
+    if not modelfile.exists():
+        print(f"ERROR: Modelfile not found: {modelfile}", file=sys.stderr)
+        sys.exit(1)
+
+    client.create_model(args.name, modelfile)
+
+
+def cmd_show(args):
+    """Show model command."""
+    client = MLXRClient(args.host)
+    client.show_model(args.model)
+
+
+def cmd_rm(args):
+    """Remove model command."""
+    client = MLXRClient(args.host)
+    if not args.force:
+        confirm = input(f"Delete model '{args.model}'? [y/N]: ")
+        if confirm.lower() != "y":
+            print("Aborted")
+            return
+
+    client.delete_model(args.model)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="mlx",
+        description="MLXR Command Line Interface",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Check daemon health
+  mlx health
+
+  # List available models
+  mlx list
+
+  # Run a model with a prompt
+  mlx run llama2:7b "Write a haiku about AI"
+
+  # Interactive chat
+  mlx run llama2:7b --interactive
+
+  # Pull a model
+  mlx pull llama2:7b
+
+  # Show model info
+  mlx show llama2:7b
+
+  # Remove a model
+  mlx rm llama2:7b
+
+For more info: https://mlxr.dev/docs
+""",
+    )
+
+    parser.add_argument("--host", default="http://localhost:11434", help="Daemon host URL")
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # health command
+    health_parser = subparsers.add_parser("health", help="Check daemon health")
+    health_parser.set_defaults(func=cmd_health)
+
+    # list command
+    list_parser = subparsers.add_parser("list", aliases=["ls"], help="List models")
+    list_parser.set_defaults(func=cmd_list)
+
+    # run command
+    run_parser = subparsers.add_parser("run", help="Run a model")
+    run_parser.add_argument("model", help="Model name")
+    run_parser.add_argument("prompt", nargs="?", help="Prompt text")
+    run_parser.add_argument("-i", "--interactive", action="store_true", help="Interactive chat mode")
+    run_parser.add_argument("-t", "--temperature", type=float, help="Sampling temperature")
+    run_parser.add_argument("-m", "--max-tokens", type=int, help="Maximum tokens to generate")
+    run_parser.set_defaults(func=cmd_run)
+
+    # pull command
+    pull_parser = subparsers.add_parser("pull", help="Pull a model")
+    pull_parser.add_argument("model", help="Model name to pull")
+    pull_parser.set_defaults(func=cmd_pull)
+
+    # create command
+    create_parser = subparsers.add_parser("create", help="Create a model from Modelfile")
+    create_parser.add_argument("name", help="Name for the new model")
+    create_parser.add_argument("modelfile", help="Path to Modelfile")
+    create_parser.set_defaults(func=cmd_create)
+
+    # show command
+    show_parser = subparsers.add_parser("show", help="Show model information")
+    show_parser.add_argument("model", help="Model name")
+    show_parser.set_defaults(func=cmd_show)
+
+    # rm command
+    rm_parser = subparsers.add_parser("rm", help="Remove a model")
+    rm_parser.add_argument("model", help="Model name to remove")
+    rm_parser.add_argument("-f", "--force", action="store_true", help="Force deletion without confirmation")
+    rm_parser.set_defaults(func=cmd_rm)
+
+    args = parser.parse_args()
+
+    if hasattr(args, "func"):
+        args.func(args)
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nInterrupted", file=sys.stderr)
+        sys.exit(130)
