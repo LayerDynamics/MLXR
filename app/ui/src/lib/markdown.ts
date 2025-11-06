@@ -149,7 +149,11 @@ export function extractLinks(markdown: string): Array<{
   url: string
   title?: string
 }> {
-  const linkRegex = /\[([^\]]+)\]\(([^)]+?)(?:\s+"([^"]+)")?\)/g
+  // Fixed ReDoS vulnerability (CWE-1333):
+  // - [^\]]+     → [^\[\]]+   (exclude both brackets, prevents nested bracket backtracking)
+  // - [^)]+?    → [^\s)]+    (URLs are non-whitespace, more deterministic)
+  // - [^"]+     → [^"]*      (allow empty titles)
+  const linkRegex = /\[([^\[\]]+)\]\(([^\s)]+)(?:\s+"([^"]*)")?\)/g
   const links: Array<{ text: string; url: string; title?: string }> = []
   let match: RegExpExecArray | null
 
@@ -174,7 +178,11 @@ export function extractImages(markdown: string): Array<{
   url: string
   title?: string
 }> {
-  const imageRegex = /!\[([^\]]*)\]\(([^)]+?)(?:\s+"([^"]+)")?\)/g
+  // Fixed ReDoS vulnerability (CWE-1333):
+  // - [^\]]*     → [^\[\]]*   (exclude both brackets, prevents nested bracket backtracking)
+  // - [^)]+?    → [^\s)]+    (URLs are non-whitespace, more deterministic)
+  // - [^"]+     → [^"]*      (allow empty titles)
+  const imageRegex = /!\[([^\[\]]*)\]\(([^\s)]+)(?:\s+"([^"]*)")?\)/g
   const images: Array<{ alt: string; url: string; title?: string }> = []
   let match: RegExpExecArray | null
 
@@ -326,11 +334,11 @@ export function markdownToFormattedText(markdown: string): string {
   // Convert code
   text = text.replace(/`([^`]+)`/g, '"$1"')
 
-  // Convert links
-  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+  // Convert links (fixed ReDoS: exclude both brackets, use non-whitespace for URLs)
+  text = text.replace(/\[([^\[\]]+)\]\([^\s)]+\)/g, '$1')
 
-  // Convert images
-  text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, '[Image: $1]')
+  // Convert images (fixed ReDoS: exclude both brackets, use non-whitespace for URLs)
+  text = text.replace(/!\[([^\[\]]*)\]\([^\s)]+\)/g, '[Image: $1]')
 
   // Convert lists
   text = text.replace(/^\s*[-*+]\s+/gm, '• ')
@@ -352,16 +360,16 @@ export function markdownToFormattedText(markdown: string): string {
  */
 export function containsMarkdown(text: string): boolean {
   const markdownPatterns = [
-    /^#{1,6}\s+/m,           // Headings
-    /\*\*[^*]+\*\*/,         // Bold
-    /_[^_]+_/,               // Italic
-    /`[^`]+`/,               // Code
-    /\[[^\]]+\]\([^)]+\)/,   // Links
-    /!\[[^\]]*\]\([^)]+\)/,  // Images
-    /^\s*[-*+]\s+/m,         // Unordered lists
-    /^\s*\d+\.\s+/m,         // Ordered lists
-    /^>\s+/m,                // Blockquotes
-    /```[\s\S]*?```/,        // Code blocks
+    /^#{1,6}\s+/m,              // Headings
+    /\*\*[^*]+\*\*/,            // Bold
+    /_[^_]+_/,                  // Italic
+    /`[^`]+`/,                  // Code
+    /\[[^\[\]]+\]\([^\s)]+\)/,  // Links (fixed ReDoS: exclude both brackets, non-whitespace URLs)
+    /!\[[^\[\]]*\]\([^\s)]+\)/, // Images (fixed ReDoS: exclude both brackets, non-whitespace URLs)
+    /^\s*[-*+]\s+/m,            // Unordered lists
+    /^\s*\d+\.\s+/m,            // Ordered lists
+    /^>\s+/m,                   // Blockquotes
+    /```[\s\S]*?```/,           // Code blocks
   ]
 
   return markdownPatterns.some(pattern => pattern.test(text))
