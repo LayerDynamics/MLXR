@@ -1,0 +1,14 @@
+{
+  "name": "mlxr-examples",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Examples for MLXR TypeScript SDK",
+  "scripts": {
+    "build": "cd .. && npm run build",
+    "openai-chat": "node ../dist/examples/openai-chat.js",
+    "ollama-chat": "node ../dist/examples/ollama-chat.js",
+    "completions": "node ../dist/examples/completions.js",
+    "embeddings": "node ../dist/examples/embeddings.js",
+    "model-management": "node ../dist/examples/model-management.js"
+  }
+}
