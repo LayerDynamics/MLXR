@@ -67,24 +67,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.27.x'
+
       - name: Install and cache Homebrew dependencies
         uses: tecolicom/actions-use-homebrew-tools@v1
         with:
           tools: mlx sentencepiece nlohmann-json cpp-httplib googletest
           cache: yes
-
-      - name: Verify CMake installation
-        run: |
-          # Uninstall any Homebrew cmake if it exists
-          brew uninstall --ignore-dependencies cmake 2>/dev/null || true
-
-          # Verify system cmake is available
-          which cmake
-          cmake --version
-
-          # Ensure we're using system cmake
-          export PATH="/usr/local/bin:/usr/bin:$PATH"
-          cmake --version
 
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1.2
