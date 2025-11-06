@@ -16,13 +16,6 @@ public struct ChatMessage: Codable, Sendable {
         case role, content, name
         case functionCall = "function_call"
     }
-
-    public init(role: String, content: String, name: String? = nil, functionCall: String? = nil) {
-        self.role = role
-        self.content = content
-        self.name = name
-        self.functionCall = functionCall
-    }
 }
 
 /// Function definition for function calling
@@ -35,23 +28,12 @@ public struct FunctionDefinition: Codable, Sendable {
         case name, description
         case parametersJSON = "parameters_json"
     }
-
-    public init(name: String, description: String, parametersJSON: String) {
-        self.name = name
-        self.description = description
-        self.parametersJSON = parametersJSON
-    }
 }
 
 /// Tool definition
 public struct ToolDefinition: Codable, Sendable {
     public let type: String
     public let function: FunctionDefinition
-
-    public init(type: String = "function", function: FunctionDefinition) {
-        self.type = type
-        self.function = function
-    }
 }
 
 /// Chat completion request
@@ -83,42 +65,6 @@ public struct ChatCompletionRequest: Codable, Sendable {
         case frequencyPenalty = "frequency_penalty"
         case toolChoice = "tool_choice"
     }
-
-    public init(
-        model: String,
-        messages: [ChatMessage],
-        temperature: Float? = nil,
-        topP: Float? = nil,
-        topK: Int? = nil,
-        repetitionPenalty: Float? = nil,
-        maxTokens: Int? = nil,
-        stream: Bool? = nil,
-        stop: [String]? = nil,
-        presencePenalty: Float? = nil,
-        frequencyPenalty: Float? = nil,
-        n: Int? = nil,
-        user: String? = nil,
-        tools: [ToolDefinition]? = nil,
-        toolChoice: String? = nil,
-        seed: Int? = nil
-    ) {
-        self.model = model
-        self.messages = messages
-        self.temperature = temperature
-        self.topP = topP
-        self.topK = topK
-        self.repetitionPenalty = repetitionPenalty
-        self.maxTokens = maxTokens
-        self.stream = stream
-        self.stop = stop
-        self.presencePenalty = presencePenalty
-        self.frequencyPenalty = frequencyPenalty
-        self.n = n
-        self.user = user
-        self.tools = tools
-        self.toolChoice = toolChoice
-        self.seed = seed
-    }
 }
 
 /// Token usage statistics
@@ -132,12 +78,6 @@ public struct UsageInfo: Codable, Sendable {
         case completionTokens = "completion_tokens"
         case totalTokens = "total_tokens"
     }
-
-    public init(promptTokens: Int = 0, completionTokens: Int = 0, totalTokens: Int = 0) {
-        self.promptTokens = promptTokens
-        self.completionTokens = completionTokens
-        self.totalTokens = totalTokens
-    }
 }
 
 /// Chat completion choice
@@ -150,12 +90,6 @@ public struct ChatCompletionChoice: Codable, Sendable {
         case index, message
         case finishReason = "finish_reason"
     }
-
-    public init(index: Int, message: ChatMessage, finishReason: String) {
-        self.index = index
-        self.message = message
-        self.finishReason = finishReason
-    }
 }
 
 /// Chat completion response (non-streaming)
@@ -166,22 +100,6 @@ public struct ChatCompletionResponse: Codable, Sendable {
     public let model: String
     public let choices: [ChatCompletionChoice]
     public let usage: UsageInfo
-
-    public init(
-        id: String,
-        object: String = "chat.completion",
-        created: Int64,
-        model: String,
-        choices: [ChatCompletionChoice],
-        usage: UsageInfo
-    ) {
-        self.id = id
-        self.object = object
-        self.created = created
-        self.model = model
-        self.choices = choices
-        self.usage = usage
-    }
 }
 
 /// Streaming delta
@@ -193,12 +111,6 @@ public struct ChatCompletionDelta: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case role, content
         case functionCall = "function_call"
-    }
-
-    public init(role: String? = nil, content: String? = nil, functionCall: String? = nil) {
-        self.role = role
-        self.content = content
-        self.functionCall = functionCall
     }
 }
 
@@ -212,12 +124,6 @@ public struct ChatCompletionStreamChoice: Codable, Sendable {
         case index, delta
         case finishReason = "finish_reason"
     }
-
-    public init(index: Int, delta: ChatCompletionDelta, finishReason: String? = nil) {
-        self.index = index
-        self.delta = delta
-        self.finishReason = finishReason
-    }
 }
 
 /// Streaming chunk
@@ -227,20 +133,6 @@ public struct ChatCompletionChunk: Codable, Sendable {
     public let created: Int64
     public let model: String
     public let choices: [ChatCompletionStreamChoice]
-
-    public init(
-        id: String,
-        object: String = "chat.completion.chunk",
-        created: Int64,
-        model: String,
-        choices: [ChatCompletionStreamChoice]
-    ) {
-        self.id = id
-        self.object = object
-        self.created = created
-        self.model = model
-        self.choices = choices
-    }
 }
 
 // MARK: - Completion (non-chat)
@@ -271,38 +163,6 @@ public struct CompletionRequest: Codable, Sendable {
         case presencePenalty = "presence_penalty"
         case frequencyPenalty = "frequency_penalty"
     }
-
-    public init(
-        model: String,
-        prompt: String,
-        temperature: Float? = nil,
-        topP: Float? = nil,
-        topK: Int? = nil,
-        repetitionPenalty: Float? = nil,
-        maxTokens: Int? = nil,
-        stream: Bool? = nil,
-        stop: [String]? = nil,
-        presencePenalty: Float? = nil,
-        frequencyPenalty: Float? = nil,
-        n: Int? = nil,
-        suffix: String? = nil,
-        seed: Int? = nil
-    ) {
-        self.model = model
-        self.prompt = prompt
-        self.temperature = temperature
-        self.topP = topP
-        self.topK = topK
-        self.repetitionPenalty = repetitionPenalty
-        self.maxTokens = maxTokens
-        self.stream = stream
-        self.stop = stop
-        self.presencePenalty = presencePenalty
-        self.frequencyPenalty = frequencyPenalty
-        self.n = n
-        self.suffix = suffix
-        self.seed = seed
-    }
 }
 
 /// Completion choice
@@ -315,12 +175,6 @@ public struct CompletionChoice: Codable, Sendable {
         case index, text
         case finishReason = "finish_reason"
     }
-
-    public init(index: Int, text: String, finishReason: String) {
-        self.index = index
-        self.text = text
-        self.finishReason = finishReason
-    }
 }
 
 /// Completion response
@@ -331,22 +185,6 @@ public struct CompletionResponse: Codable, Sendable {
     public let model: String
     public let choices: [CompletionChoice]
     public let usage: UsageInfo
-
-    public init(
-        id: String,
-        object: String = "text_completion",
-        created: Int64,
-        model: String,
-        choices: [CompletionChoice],
-        usage: UsageInfo
-    ) {
-        self.id = id
-        self.object = object
-        self.created = created
-        self.model = model
-        self.choices = choices
-        self.usage = usage
-    }
 }
 
 // MARK: - Embeddings
@@ -362,13 +200,6 @@ public struct EmbeddingRequest: Codable, Sendable {
         case model, input, user
         case encodingFormat = "encoding_format"
     }
-
-    public init(model: String, input: String, encodingFormat: String? = nil, user: String? = nil) {
-        self.model = model
-        self.input = input
-        self.encodingFormat = encodingFormat
-        self.user = user
-    }
 }
 
 /// Single embedding object
@@ -376,12 +207,6 @@ public struct EmbeddingObject: Codable, Sendable {
     public let index: Int
     public let embedding: [Float]
     public let object: String
-
-    public init(index: Int, embedding: [Float], object: String = "embedding") {
-        self.index = index
-        self.embedding = embedding
-        self.object = object
-    }
 }
 
 /// Embedding response
@@ -390,18 +215,6 @@ public struct EmbeddingResponse: Codable, Sendable {
     public let data: [EmbeddingObject]
     public let model: String
     public let usage: UsageInfo
-
-    public init(
-        object: String = "list",
-        data: [EmbeddingObject],
-        model: String,
-        usage: UsageInfo
-    ) {
-        self.object = object
-        self.data = data
-        self.model = model
-        self.usage = usage
-    }
 }
 
 // MARK: - Models
@@ -417,22 +230,10 @@ public struct ModelInfo: Codable, Sendable {
         case id, object, created
         case ownedBy = "owned_by"
     }
-
-    public init(id: String, object: String = "model", created: Int64, ownedBy: String = "mlxr") {
-        self.id = id
-        self.object = object
-        self.created = created
-        self.ownedBy = ownedBy
-    }
 }
 
 /// Model list response
 public struct ModelListResponse: Codable, Sendable {
     public let object: String
     public let data: [ModelInfo]
-
-    public init(object: String = "list", data: [ModelInfo]) {
-        self.object = object
-        self.data = data
-    }
 }

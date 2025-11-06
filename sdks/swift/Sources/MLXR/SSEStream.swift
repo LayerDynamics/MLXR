@@ -5,34 +5,42 @@ import Foundation
 
 /// SSE event parser
 struct SSEParser {
-    /// Parse SSE events from a stream
-    static func parseEvents(from data: Data) -> [SSEEvent] {
+    /// Parse SSE events from a stream, returning events and the number of bytes consumed
+    static func parseEvents(from data: Data) -> (events: [SSEEvent], bytesConsumed: Int) {
         guard let text = String(data: data, encoding: .utf8) else {
-            return []
+            return ([], 0)
         }
 
         var events: [SSEEvent] = []
         var currentEvent = SSEEvent()
+        var position = 0
+        var lastCompleteEventEnd = 0
 
         let lines = text.components(separatedBy: .newlines)
 
         for line in lines {
+            let lineLength = line.utf8.count + 1  // +1 for newline
+
             if line.isEmpty {
                 // Empty line marks end of event
                 if !currentEvent.isEmpty {
                     events.append(currentEvent)
                     currentEvent = SSEEvent()
+                    lastCompleteEventEnd = position + lineLength
                 }
+                position += lineLength
                 continue
             }
 
             if line.hasPrefix(":") {
                 // Comment line, skip
+                position += lineLength
                 continue
             }
 
             guard let colonIndex = line.firstIndex(of: ":") else {
                 // Invalid line, skip
+                position += lineLength
                 continue
             }
 
@@ -62,14 +70,12 @@ struct SSEParser {
             default:
                 break
             }
+
+            position += lineLength
         }
 
-        // Add final event if not empty
-        if !currentEvent.isEmpty {
-            events.append(currentEvent)
-        }
-
-        return events
+        // Only return complete events and the position up to the last complete event
+        return (events, lastCompleteEventEnd)
     }
 }
 
@@ -106,7 +112,7 @@ public struct SSEStream<T: Decodable> {
                         buffer.append(chunk)
 
                         // Process complete SSE events
-                        let events = SSEParser.parseEvents(from: buffer)
+                        let (events, bytesConsumed) = SSEParser.parseEvents(from: buffer)
 
                         for event in events {
                             // Handle special [DONE] marker for OpenAI
@@ -133,8 +139,10 @@ public struct SSEStream<T: Decodable> {
                             }
                         }
 
-                        // Clear processed data from buffer
-                        buffer.removeAll()
+                        // Only remove processed data from buffer, keep partial events
+                        if bytesConsumed > 0 {
+                            buffer.removeFirst(bytesConsumed)
+                        }
                     }
 
                     continuation.finish()
@@ -164,13 +172,16 @@ public struct RawSSEStream {
                     for try await chunk in dataStream {
                         buffer.append(chunk)
 
-                        let events = SSEParser.parseEvents(from: buffer)
+                        let (events, bytesConsumed) = SSEParser.parseEvents(from: buffer)
 
                         for event in events {
                             continuation.yield(event)
                         }
 
-                        buffer.removeAll()
+                        // Only remove processed data from buffer, keep partial events
+                        if bytesConsumed > 0 {
+                            buffer.removeFirst(bytesConsumed)
+                        }
                     }
 
                     continuation.finish()

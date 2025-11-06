@@ -246,12 +246,12 @@ final class UnixSocketTransport: Transport {
         let pathCString = (socketPath as NSString).utf8String!
         let pathLength = Int(strlen(pathCString))
 
-        guard pathLength < MemoryLayout.size(ofValue: addr.sun_path) else {
+        // Use memcpy for safe and portable assignment, ensure null-termination
+        let sunPathSize = MemoryLayout.size(ofValue: addr.sun_path)
+        guard pathLength < sunPathSize else {
             throw MLXRError.socketNotAvailable(socketPath)
         }
 
-        // Use memcpy for safe and portable assignment, ensure null-termination
-        let sunPathSize = MemoryLayout.size(ofValue: addr.sun_path)
         withUnsafeMutableBytes(of: &addr.sun_path) { sunPathPtr in
             // Copy up to sunPathSize - 1 to leave space for null terminator
             let copyLength = min(pathLength, sunPathSize - 1)

@@ -119,8 +119,7 @@ public actor MLXRClient {
     public func chatCompletionStream(
         request: ChatCompletionRequest
     ) async throws -> AsyncThrowingStream<ChatCompletionChunk, Error> {
-        var streamRequest = request
-        streamRequest = ChatCompletionRequest(
+        let streamRequest = ChatCompletionRequest(
             model: request.model,
             messages: request.messages,
             temperature: request.temperature,
@@ -139,15 +138,11 @@ public actor MLXRClient {
             seed: request.seed
         )
 
-        let requestData = try encoder.encode(streamRequest)
-
-        let dataStream = try await streamRequest(
+        return try await streamSSE(
+            request: streamRequest,
             method: "POST",
-            path: "/v1/chat/completions",
-            body: requestData
+            path: "/v1/chat/completions"
         )
-
-        return SSEStream<ChatCompletionChunk>(dataStream: dataStream, decoder: decoder).events()
     }
 
     /// Create a text completion
@@ -167,8 +162,7 @@ public actor MLXRClient {
     public func completionStream(
         request: CompletionRequest
     ) async throws -> AsyncThrowingStream<CompletionResponse, Error> {
-        var streamRequest = request
-        streamRequest = CompletionRequest(
+        let streamRequest = CompletionRequest(
             model: request.model,
             prompt: request.prompt,
             temperature: request.temperature,
@@ -185,15 +179,11 @@ public actor MLXRClient {
             seed: request.seed
         )
 
-        let requestData = try encoder.encode(streamRequest)
-
-        let dataStream = try await streamRequest(
+        return try await streamSSE(
+            request: streamRequest,
             method: "POST",
-            path: "/v1/completions",
-            body: requestData
+            path: "/v1/completions"
         )
-
-        return SSEStream<CompletionResponse>(dataStream: dataStream, decoder: decoder).events()
     }
 
     /// Create embeddings
@@ -228,8 +218,7 @@ public actor MLXRClient {
     public func ollamaGenerateStream(
         request: OllamaGenerateRequest
     ) async throws -> AsyncThrowingStream<OllamaGenerateResponse, Error> {
-        var streamRequest = request
-        streamRequest = OllamaGenerateRequest(
+        let streamRequest = OllamaGenerateRequest(
             model: request.model,
             prompt: request.prompt,
             system: request.system,
@@ -247,16 +236,11 @@ public actor MLXRClient {
             stop: request.stop
         )
 
-        let requestData = try encoder.encode(streamRequest)
-
-        let dataStream = try await streamRequest(
+        return try await streamNDJSON(
+            request: streamRequest,
             method: "POST",
-            path: "/api/generate",
-            body: requestData
+            path: "/api/generate"
         )
-
-        // Ollama uses newline-delimited JSON, not SSE
-        return parseNDJSON(dataStream)
     }
 
     /// Chat using Ollama API
@@ -276,8 +260,7 @@ public actor MLXRClient {
     public func ollamaChatStream(
         request: OllamaChatRequest
     ) async throws -> AsyncThrowingStream<OllamaChatResponse, Error> {
-        var streamRequest = request
-        streamRequest = OllamaChatRequest(
+        let streamRequest = OllamaChatRequest(
             model: request.model,
             messages: request.messages,
             stream: true,
@@ -291,15 +274,11 @@ public actor MLXRClient {
             stop: request.stop
         )
 
-        let requestData = try encoder.encode(streamRequest)
-
-        let dataStream = try await streamRequest(
+        return try await streamNDJSON(
+            request: streamRequest,
             method: "POST",
-            path: "/api/chat",
-            body: requestData
+            path: "/api/chat"
         )
-
-        return parseNDJSON(dataStream)
     }
 
     /// Create embeddings using Ollama API
@@ -376,45 +355,35 @@ public actor MLXRClient {
     public func ollamaPull(
         request: OllamaPullRequest
     ) async throws -> AsyncThrowingStream<OllamaPullResponse, Error> {
-        var streamRequest = request
-        streamRequest = OllamaPullRequest(
+        let streamRequest = OllamaPullRequest(
             name: request.name,
             insecure: request.insecure,
             stream: true
         )
 
-        let requestData = try encoder.encode(streamRequest)
-
-        let dataStream = try await streamRequest(
+        return try await streamNDJSON(
+            request: streamRequest,
             method: "POST",
-            path: "/api/pull",
-            body: requestData
+            path: "/api/pull"
         )
-
-        return parseNDJSON(dataStream)
     }
 
     /// Create a model using Ollama API (streaming)
     public func ollamaCreate(
         request: OllamaCreateRequest
     ) async throws -> AsyncThrowingStream<OllamaCreateResponse, Error> {
-        var streamRequest = request
-        streamRequest = OllamaCreateRequest(
+        let streamRequest = OllamaCreateRequest(
             name: request.name,
             modelfile: request.modelfile,
             path: request.path,
             stream: true
         )
 
-        let requestData = try encoder.encode(streamRequest)
-
-        let dataStream = try await streamRequest(
+        return try await streamNDJSON(
+            request: streamRequest,
             method: "POST",
-            path: "/api/create",
-            body: requestData
+            path: "/api/create"
         )
-
-        return parseNDJSON(dataStream)
     }
 
     // MARK: - Private helpers
@@ -477,6 +446,28 @@ public actor MLXRClient {
         }
     }
 
+    /// Helper to stream with SSE parsing (OpenAI format)
+    private func streamSSE<Req: Encodable, Res: Decodable>(
+        request: Req,
+        method: String,
+        path: String
+    ) async throws -> AsyncThrowingStream<Res, Error> {
+        let requestData = try encoder.encode(request)
+        let dataStream = try await streamRequest(method: method, path: path, body: requestData)
+        return SSEStream<Res>(dataStream: dataStream, decoder: decoder).events()
+    }
+
+    /// Helper to stream with NDJSON parsing (Ollama format)
+    private func streamNDJSON<Req: Encodable, Res: Decodable>(
+        request: Req,
+        method: String,
+        path: String
+    ) async throws -> AsyncThrowingStream<Res, Error> {
+        let requestData = try encoder.encode(request)
+        let dataStream = try await streamRequest(method: method, path: path, body: requestData)
+        return parseNDJSON(dataStream)
+    }
+
     /// Parse newline-delimited JSON (used by Ollama)
     private func parseNDJSON<T: Decodable>(_ dataStream: AsyncThrowingStream<Data, Error>) -> AsyncThrowingStream<T, Error> {
         AsyncThrowingStream { continuation in
@@ -500,7 +491,11 @@ public actor MLXRClient {
                                 let decoded = try decoder.decode(T.self, from: line)
                                 continuation.yield(decoded)
                             } catch {
-                                // Skip invalid JSON lines
+                                // Log skipped invalid JSON line for traceability
+                                #if DEBUG
+                                let lineString = String(data: line, encoding: .utf8) ?? "<unreadable>"
+                                print("MLXRClient.parseNDJSON: Skipping invalid JSON line: \(lineString), error: \(error)")
+                                #endif
                                 continue
                             }
                         }
@@ -512,7 +507,11 @@ public actor MLXRClient {
                             let decoded = try decoder.decode(T.self, from: buffer)
                             continuation.yield(decoded)
                         } catch {
-                            // Skip invalid JSON
+                            // Log skipped invalid JSON for traceability
+                            #if DEBUG
+                            let bufferString = String(data: buffer, encoding: .utf8) ?? "<unreadable>"
+                            print("MLXRClient.parseNDJSON: Skipping invalid JSON at end: \(bufferString), error: \(error)")
+                            #endif
                         }
                     }
 

@@ -131,7 +131,7 @@ final class MLXRClientTests: XCTestCase {
 
         """.data(using: .utf8)!
 
-        let events = SSEParser.parseEvents(from: sseData)
+        let (events, bytesConsumed) = SSEParser.parseEvents(from: sseData)
 
         XCTAssertEqual(events.count, 2)
         XCTAssertEqual(events[0].event, "message")
@@ -140,5 +140,6 @@ final class MLXRClientTests: XCTestCase {
 
         XCTAssertEqual(events[1].event, "done")
         XCTAssertEqual(events[1].data, "[DONE]")
+        XCTAssertGreaterThan(bytesConsumed, 0)
     }
 }
