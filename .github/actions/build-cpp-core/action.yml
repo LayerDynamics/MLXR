@@ -1,0 +1,127 @@
+name: 'Build C++ Core'
+description: 'Configures and builds the C++ core library with CMake'
+
+inputs:
+  build-type:
+    description: 'CMake build type (Release, Debug, RelWithDebInfo)'
+    required: false
+    default: 'Release'
+
+  use-ccache:
+    description: 'Enable ccache for compilation'
+    required: false
+    default: 'true'
+
+  parallel-jobs:
+    description: 'Number of parallel jobs (default: auto)'
+    required: false
+    default: ''
+
+  arch:
+    description: 'Target architecture (arm64, x86_64, or auto-detect if empty)'
+    required: false
+    default: ''
+
+  macos-deployment-target:
+    description: 'macOS deployment target version (only applies to macOS builds)'
+    required: false
+    default: '14.0'
+
+outputs:
+  build-dir:
+    description: 'CMake build directory'
+    value: 'build/cmake'
+
+  bin-dir:
+    description: 'Binary output directory'
+    value: 'build/cmake/bin'
+
+  lib-dir:
+    description: 'Library output directory'
+    value: 'build/cmake/lib'
+
+runs:
+  using: composite
+  steps:
+    - name: Configure CMake
+      shell: bash
+      run: |
+        echo "=== Configuring CMake ==="
+
+        # Validate build-type input
+        BUILD_TYPE="${{ inputs.build-type }}"
+        if [[ -z "$BUILD_TYPE" ]]; then
+          BUILD_TYPE="Release"
+          echo "Warning: build-type not specified, defaulting to Release"
+        fi
+
+        # Determine architecture for macOS builds
+        ARCH="${{ inputs.arch }}"
+        if [[ -z "$ARCH" ]] && [[ "$RUNNER_OS" == "macOS" ]]; then
+          ARCH="$(uname -m)"
+          echo "Auto-detected architecture: $ARCH"
+        elif [[ -n "$ARCH" ]]; then
+          echo "Using specified architecture: $ARCH"
+        fi
+
+        # Build CMake arguments
+        CMAKE_ARGS=(
+          -B build/cmake
+          -G Ninja
+          -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
+        )
+
+        # Add macOS-specific flags
+        if [[ "$RUNNER_OS" == "macOS" ]]; then
+          if [[ -n "$ARCH" ]]; then
+            CMAKE_ARGS+=(-DCMAKE_OSX_ARCHITECTURES="$ARCH")
+          fi
+
+          DEPLOYMENT_TARGET="${{ inputs.macos-deployment-target }}"
+          if [[ -n "$DEPLOYMENT_TARGET" ]]; then
+            CMAKE_ARGS+=(-DCMAKE_OSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET")
+          fi
+        fi
+
+        # Add ccache support if enabled
+        if [ "${{ inputs.use-ccache }}" = "true" ]; then
+          CMAKE_ARGS+=(
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          )
+        fi
+
+        echo "CMake configuration: ${CMAKE_ARGS[@]}"
+        cmake "${CMAKE_ARGS[@]}"
+
+    - name: Build C++ core
+      shell: bash
+      run: |
+        echo "=== Building C++ Core ==="
+
+        BUILD_ARGS=(--build build/cmake)
+
+        if [ -n "${{ inputs.parallel-jobs }}" ]; then
+          BUILD_ARGS+=(--parallel ${{ inputs.parallel-jobs }})
+        else
+          BUILD_ARGS+=(--parallel)
+        fi
+
+        cmake "${BUILD_ARGS[@]}"
+
+    - name: Display ccache statistics
+      if: inputs.use-ccache == 'true'
+      shell: bash
+      run: |
+        echo "=== ccache Statistics ==="
+        ccache -s
+
+    - name: List build artifacts
+      shell: bash
+      run: |
+        echo "=== Build Artifacts ==="
+        echo "Libraries:"
+        find build/cmake/lib \( -name "*.a" -o -name "*.so" -o -name "*.dylib" \) 2>/dev/null || echo "  (none)"
+        echo ""
+        echo "Binaries:"
+        find build/cmake/bin -type f 2>/dev/null || echo "  (none)"
