@@ -43,11 +43,9 @@ jobs:
         with:
           cmake-version: '3.27.x'
 
-      - name: Install and cache dependencies
-        uses: tecolicom/actions-use-homebrew-tools@v1
-        with:
-          tools: mlx sentencepiece nlohmann-json cpp-httplib googletest node
-          cache: yes
+      - name: Install Homebrew dependencies
+        run: |
+          brew install mlx sentencepiece nlohmann-json cpp-httplib googletest node
 
       - name: Set up Conda
         uses: conda-incubator/setup-miniconda@v3
