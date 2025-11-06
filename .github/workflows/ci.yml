@@ -67,11 +67,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install CMake and Ninja
-        run: |
-          brew install cmake ninja
-
-      - name: Install and cache other Homebrew dependencies
+      - name: Install and cache Homebrew dependencies
         uses: tecolicom/actions-use-homebrew-tools@v1
         with:
           tools: mlx sentencepiece nlohmann-json cpp-httplib googletest
