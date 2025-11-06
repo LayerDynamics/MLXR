@@ -7,6 +7,11 @@ on:
     branches: [ main, develop ]
   workflow_dispatch:
 
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ============================================================================
   # Metal Kernel Compilation
@@ -24,7 +29,17 @@ jobs:
           xcodebuild -version
           xcrun metal --version
 
+      - name: Cache Metal libraries
+        uses: actions/cache@v4
+        id: metal-cache
+        with:
+          path: build/lib/*.metallib
+          key: metal-${{ runner.os }}-${{ hashFiles('core/kernels/metal/**/*.metal') }}
+          restore-keys: |
+            metal-${{ runner.os }}-
+
       - name: Compile Metal shaders
+        if: steps.metal-cache.outputs.cache-hit != 'true'
         run: |
           ./scripts/build_metal.sh
 
@@ -52,9 +67,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          brew install cmake ninja mlx sentencepiece
+      - name: Install and cache Homebrew dependencies
+        uses: tecolicom/actions-use-homebrew-tools@v1
+        with:
+          tools: cmake ninja mlx sentencepiece
+          cache: yes
+
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-ccache-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-
+          max-size: 500M
 
       - name: Download Metal libraries
         uses: actions/download-artifact@v4
@@ -62,17 +87,22 @@ jobs:
           name: metal-kernels
           path: build/lib
 
-      - name: Configure CMake
+      - name: Configure CMake with ccache
         run: |
           cmake -B build/cmake \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build C++ core
         run: |
           cmake --build build/cmake --parallel
+
+      - name: ccache statistics
+        run: ccache -s
 
       - name: List build artifacts
         run: |
@@ -99,9 +129,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          brew install mlx sentencepiece
+      - name: Install runtime dependencies
+        uses: tecolicom/actions-use-homebrew-tools@v1
+        with:
+          tools: mlx sentencepiece
+          cache: yes
 
       - name: Download Metal libraries
         uses: actions/download-artifact@v4
@@ -148,13 +180,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Conda
+      - name: Set up Conda with caching
         uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
           python-version: "3.11"
           environment-file: environment.yml
           activate-environment: mlxr
+          use-mamba: true  # Faster conda solver
 
       - name: Verify environment
         shell: bash -el {0}
@@ -207,6 +240,7 @@ jobs:
           python-version: "3.11"
           environment-file: environment.yml
           activate-environment: mlxr
+          use-mamba: true
 
       - name: Check Python formatting (Black)
         shell: bash -el {0}
