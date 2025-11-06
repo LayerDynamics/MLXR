@@ -1,0 +1,106 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mlxr"
+version = "0.1.0"
+description = "Python SDK for MLXR - High-performance LLM inference engine for Apple Silicon"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "MLXR Team"}
+]
+keywords = ["mlx", "llm", "inference", "apple-silicon", "macos"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Operating System :: MacOS",
+]
+
+dependencies = [
+    "httpx>=0.24.0",
+    "pydantic>=2.0.0",
+    "click>=8.0.0",
+    "typing-extensions>=4.5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.0.260",
+    "mypy>=1.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+mlxr = "mlxrunner.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/LayerDynamics/MLXR"
+Documentation = "https://github.com/LayerDynamics/MLXR/tree/main/docs"
+Repository = "https://github.com/LayerDynamics/MLXR"
+Issues = "https://github.com/LayerDynamics/MLXR/issues"
+
+[tool.setuptools.packages.find]
+include = ["mlxrunner*"]
+
+[tool.setuptools.package-data]
+mlxrunner = ["py.typed"]
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (black handles this)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+follow_imports = "normal"
+strict_optional = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --cov=mlxrunner --cov-report=term-missing"
+asyncio_mode = "auto"
