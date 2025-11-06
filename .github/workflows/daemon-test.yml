@@ -27,9 +27,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          brew install cmake ninja mlx sentencepiece nlohmann-json cpp-httplib googletest
+      - name: Setup build environment
+        uses: ./.github/actions/setup-build-env
+        with:
+          install-build-tools: 'true'
+          use-ccache: 'false'
 
       - name: Set up Conda
         uses: conda-incubator/setup-miniconda@v3
@@ -39,20 +41,16 @@ jobs:
           environment-file: environment.yml
           activate-environment: mlxr
 
-      - name: Compile Metal kernels
-        run: |
-          ./scripts/build_metal.sh
+      - name: Build Metal kernels
+        uses: ./.github/actions/build-metal-kernels
+        with:
+          cache-key-prefix: 'metal-daemon'
 
       - name: Build C++ core and daemon
-        shell: bash -el {0}
-        run: |
-          cmake -B build/cmake \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0
-
-          cmake --build build/cmake --parallel
+        uses: ./.github/actions/build-cpp-core
+        with:
+          build-type: 'Release'
+          use-ccache: 'false'
 
       - name: Verify daemon binary
         run: |
@@ -91,7 +89,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install mlx sentencepiece nlohmann-json cpp-httplib googletest
+          ./scripts/install_homebrew_deps.sh --quiet
 
       - name: Download daemon artifacts
         uses: actions/download-artifact@v4
@@ -143,7 +141,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install mlx sentencepiece nlohmann-json cpp-httplib googletest
+          ./scripts/install_homebrew_deps.sh --quiet
 
       - name: Download daemon artifacts
         uses: actions/download-artifact@v4
@@ -260,7 +258,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install mlx sentencepiece nlohmann-json cpp-httplib googletest apache-bench
+          ./scripts/install_homebrew_deps.sh --with-apache-bench --quiet
 
       - name: Download daemon artifacts
         uses: actions/download-artifact@v4
