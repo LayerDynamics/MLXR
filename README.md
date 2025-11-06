@@ -5,6 +5,7 @@ High-performance, macOS-native LLM inference engine for Apple Silicon.
 ## Overview
 
 MLXR is a local LLM runner built specifically for Apple Silicon (M4, M3, M2) that combines:
+
 - **MLX framework** for tensor/graph management
 - **Custom Metal kernels** for performance-critical operations
 - **OpenAI and Ollama-compatible APIs** for seamless integration
@@ -64,6 +65,7 @@ MLXR is a local LLM runner built specifically for Apple Silicon (M4, M3, M2) tha
 🚧 **Early Development** - Phase 0 (Foundation)
 
 This project is in active development. Currently implementing:
+
 - [x] Repository structure
 - [x] Build system setup
 - [ ] Metal kernel compilation pipeline
@@ -114,21 +116,25 @@ yarn dev
 ## Development Phases
 
 ### Phase 0: Foundation (Current)
+
 - Repository structure and build system
 - Metal shader compilation pipeline
 - Basic toolchain validation
 
 ### Phase 1: Minimal Inference Core
+
 - MLX integration and basic model loading
 - SentencePiece tokenizer
 - Single-request inference (FP16)
 
 ### Phase 2: REST API & Daemon
+
 - Daemon process with Unix domain socket
 - Basic OpenAI-compatible endpoints
 - Simple model registry
 
 ### Phase 3+
+
 See [plan/SPEC01.md](plan/SPEC01.md) for complete roadmap.
 
 ## Documentation
@@ -153,6 +159,7 @@ Apache License 2.0 - See [LICENSE](LICENSE) for details.
 ## Acknowledgments
 
 Built with:
+
 - [MLX](https://github.com/ml-explore/mlx) - Apple's machine learning framework
 - Metal - Apple's GPU compute API
 - Inspired by [vLLM](https://github.com/vllm-project/vllm), [llama.cpp](https://github.com/ggerganov/llama.cpp), and [Ollama](https://github.com/ollama/ollama)

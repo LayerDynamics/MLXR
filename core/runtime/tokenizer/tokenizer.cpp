@@ -96,12 +96,19 @@ int SentencePieceTokenizer::token_to_id(const std::string& token) const {
   return impl_->token_to_id(token);
 }
 
+// C++17 compatible string suffix check
+static bool ends_with(const std::string& str, const std::string& suffix) {
+  if (suffix.length() > str.length()) return false;
+  return str.compare(str.length() - suffix.length(), suffix.length(), suffix) ==
+         0;
+}
+
 // Factory function
 std::unique_ptr<Tokenizer> create_tokenizer(const std::string& model_path) {
   // Check file extension to determine tokenizer type
-  if (model_path.ends_with(".model")) {
+  if (ends_with(model_path, ".model")) {
     return std::make_unique<SentencePieceTokenizer>(model_path);
-  } else if (model_path.ends_with(".json")) {
+  } else if (ends_with(model_path, ".json")) {
     throw std::runtime_error(
         "HuggingFace tokenizers not yet implemented. "
         "Please use SentencePiece (.model) format.");

@@ -10,18 +10,18 @@
 namespace mlxr {
 namespace graph {
 
-Tensor::Tensor() : array_(mlx::core::array()) {}
+Tensor::Tensor() : array_(mlx::core::array({0.0f})) {}
 
 Tensor::Tensor(const mlx::core::array& array) : array_(array) {}
 
 Tensor::Tensor(const std::vector<int>& shape, mlx::core::Dtype dtype)
-    : array_(mlx::core::zeros(shape, dtype)) {}
+    : array_(mlx::core::zeros(to_shape(shape), dtype)) {}
 
 mlx::core::array& Tensor::array() { return array_; }
 
 const mlx::core::array& Tensor::array() const { return array_; }
 
-std::vector<int> Tensor::shape() const { return array_.shape(); }
+std::vector<int> Tensor::shape() const { return from_shape(array_.shape()); }
 
 mlx::core::Dtype Tensor::dtype() const { return array_.dtype(); }
 
@@ -32,13 +32,14 @@ size_t Tensor::size() const { return array_.size(); }
 bool Tensor::empty() const { return array_.size() == 0; }
 
 Tensor Tensor::reshape(const std::vector<int>& new_shape) const {
-  return Tensor(mlx::core::reshape(array_, new_shape));
+  return Tensor(mlx::core::reshape(array_, to_shape(new_shape)));
 }
 
 Tensor Tensor::transpose(const std::vector<int>& axes) const {
   if (axes.empty()) {
     return Tensor(mlx::core::transpose(array_));
   } else {
+    // MLX transpose expects std::vector, not Shape
     return Tensor(mlx::core::transpose(array_, axes));
   }
 }
@@ -93,16 +94,27 @@ Tensor Tensor::operator/(float scalar) const {
 
 // Factory functions
 Tensor zeros(const std::vector<int>& shape, mlx::core::Dtype dtype) {
-  return Tensor(mlx::core::zeros(shape, dtype));
+  return Tensor(mlx::core::zeros(to_shape(shape), dtype));
 }
 
 Tensor ones(const std::vector<int>& shape, mlx::core::Dtype dtype) {
-  return Tensor(mlx::core::ones(shape, dtype));
+  return Tensor(mlx::core::ones(to_shape(shape), dtype));
 }
 
 Tensor from_data(const void* data, const std::vector<int>& shape,
                  mlx::core::Dtype dtype) {
-  return Tensor(mlx::core::array(data, shape, dtype));
+  mlx::core::Shape mlx_shape = to_shape(shape);
+  size_t size = 1;
+  for (int dim : shape) size *= dim;
+
+  // Create array from raw data
+  if (dtype == mlx::core::float32) {
+    std::vector<float> vec_data(static_cast<const float*>(data),
+                                static_cast<const float*>(data) + size);
+    return Tensor(mlx::core::array(vec_data.begin(), mlx_shape, dtype));
+  } else {
+    throw std::runtime_error("Only float32 supported in from_data for now");
+  }
 }
 
 // Operations
@@ -122,7 +134,8 @@ Tensor concatenate(const std::vector<Tensor>& tensors, int axis) {
 std::vector<Tensor> split(const Tensor& tensor,
                           const std::vector<int>& indices_or_sections,
                           int axis) {
-  auto arrays = mlx::core::split(tensor.array(), indices_or_sections, axis);
+  auto arrays =
+      mlx::core::split(tensor.array(), to_shape(indices_or_sections), axis);
   std::vector<Tensor> result;
   result.reserve(arrays.size());
   for (const auto& arr : arrays) {

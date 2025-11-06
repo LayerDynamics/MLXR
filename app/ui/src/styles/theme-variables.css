@@ -1,0 +1,169 @@
+/**
+ * Theme CSS Variables
+ *
+ * Defines CSS custom properties for light and dark themes
+ * Based on shadcn/ui default theme with slate as base color
+ */
+
+@layer base {
+  :root {
+    /* Light theme colors */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+
+    /* Chart colors for metrics visualization */
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+
+    /* Custom MLXR app colors */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 222.2 47.4% 11.2%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+
+    --statusbar-background: 210 40% 96.1%;
+    --statusbar-foreground: 222.2 47.4% 11.2%;
+    --statusbar-border: 214.3 31.8% 91.4%;
+
+    --composer-background: 0 0% 100%;
+    --composer-border: 214.3 31.8% 91.4%;
+
+    --message-user-background: 222.2 47.4% 11.2%;
+    --message-user-foreground: 210 40% 98%;
+    --message-assistant-background: 210 40% 96.1%;
+    --message-assistant-foreground: 222.2 47.4% 11.2%;
+
+    --code-background: 220 13% 95%;
+    --code-foreground: 222.2 47.4% 11.2%;
+
+    /* Semantic colors */
+    --success: 142 76% 36%;
+    --success-foreground: 210 40% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 222.2 47.4% 11.2%;
+    --info: 199 89% 48%;
+    --info-foreground: 210 40% 98%;
+
+    /* Status indicators */
+    --status-running: 142 76% 36%;
+    --status-stopped: 0 84.2% 60.2%;
+    --status-loading: 38 92% 50%;
+    --status-error: 0 84.2% 60.2%;
+
+    /* Metrics colors */
+    --metric-positive: 142 76% 36%;
+    --metric-negative: 0 84.2% 60.2%;
+    --metric-neutral: 215.4 16.3% 46.9%;
+  }
+
+  .dark {
+    /* Dark theme colors */
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+
+    /* Chart colors (adjusted for dark theme) */
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+
+    /* Custom MLXR app colors (dark) */
+    --sidebar-background: 217.2 32.6% 12%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 32.6% 17.5%;
+
+    --statusbar-background: 217.2 32.6% 15%;
+    --statusbar-foreground: 210 40% 98%;
+    --statusbar-border: 217.2 32.6% 17.5%;
+
+    --composer-background: 222.2 84% 4.9%;
+    --composer-border: 217.2 32.6% 17.5%;
+
+    --message-user-background: 210 40% 98%;
+    --message-user-foreground: 222.2 47.4% 11.2%;
+    --message-assistant-background: 217.2 32.6% 17.5%;
+    --message-assistant-foreground: 210 40% 98%;
+
+    --code-background: 217.2 32.6% 12%;
+    --code-foreground: 210 40% 98%;
+
+    /* Semantic colors (dark) */
+    --success: 142 76% 36%;
+    --success-foreground: 210 40% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 222.2 47.4% 11.2%;
+    --info: 199 89% 48%;
+    --info-foreground: 210 40% 98%;
+
+    /* Status indicators (dark) */
+    --status-running: 142 76% 36%;
+    --status-stopped: 0 62.8% 30.6%;
+    --status-loading: 38 92% 50%;
+    --status-error: 0 62.8% 30.6%;
+
+    /* Metrics colors (dark) */
+    --metric-positive: 142 76% 36%;
+    --metric-negative: 0 62.8% 30.6%;
+    --metric-neutral: 215 20.2% 65.1%;
+  }
+}
+
+/* Apply border radius to all relevant elements */
+* {
+  border-color: hsl(var(--border));
+}

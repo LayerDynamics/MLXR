@@ -70,6 +70,12 @@ endif()
 if(NOT MLX_INCLUDE_DIRS)
     # Common installation paths
     set(MLX_SEARCH_PATHS
+        # Homebrew installation (preferred for native development)
+        /opt/homebrew/Cellar/mlx/0.29.3
+        /opt/homebrew/opt/mlx
+        /usr/local/Cellar/mlx/0.29.3
+        /usr/local/opt/mlx
+        # Python package installations
         /opt/homebrew/lib/python3.11/site-packages/mlx
         /opt/homebrew/lib/python3.12/site-packages/mlx
         /usr/local/lib/python3.11/site-packages/mlx

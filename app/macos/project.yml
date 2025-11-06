@@ -1,0 +1,265 @@
+#
+# XcodeGen Project Specification for MLXR.app
+#
+# This file defines the Xcode project structure and can be used to
+# generate MLXR.xcodeproj using XcodeGen:
+#   brew install xcodegen
+#   cd app/macos && xcodegen generate
+#
+
+name: MLXR
+
+options:
+  bundleIdPrefix: com.mlxr
+  deploymentTarget:
+    macOS: "14.0"
+  developmentLanguage: en
+  xcodeVersion: "15.0"
+
+settings:
+  base:
+    PRODUCT_NAME: MLXR
+    PRODUCT_BUNDLE_IDENTIFIER: com.mlxr.app
+    DEVELOPMENT_TEAM: "" # Set your team ID here
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "Developer ID Application"
+    PROVISIONING_PROFILE_SPECIFIER: ""
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    ARCHS: arm64
+    ONLY_ACTIVE_ARCH: YES
+    SWIFT_VERSION: "5.9"
+    ENABLE_HARDENED_RUNTIME: YES
+    COMBINE_HIDPI_IMAGES: YES
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    INFOPLIST_FILE: MLXR/Resources/Info.plist
+    CODE_SIGN_ENTITLEMENTS: MLXR/Resources/MLXR.entitlements
+    LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+    FRAMEWORK_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)"
+
+  configs:
+    Debug:
+      GCC_OPTIMIZATION_LEVEL: "0"
+      SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+      ENABLE_TESTABILITY: YES
+      DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+      ONLY_ACTIVE_ARCH: YES
+      MLXR_DEV_MODE: "1"
+
+    Release:
+      GCC_OPTIMIZATION_LEVEL: "s"
+      SWIFT_OPTIMIZATION_LEVEL: "-O"
+      ENABLE_TESTABILITY: NO
+      DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+      COPY_PHASE_STRIP: NO
+      STRIP_INSTALLED_PRODUCT: YES
+      MLXR_DEV_MODE: "0"
+
+targets:
+  MLXR:
+    type: application
+    platform: macOS
+
+    sources:
+      # App Core
+      - path: MLXR/App
+        name: App
+        type: group
+
+      # Controllers
+      - path: MLXR/Controllers
+        name: Controllers
+        type: group
+
+      # Bridge
+      - path: MLXR/Bridge
+        name: Bridge
+        type: group
+        excludes:
+          - "*.js"  # JavaScript files handled separately
+
+      # Daemon Management
+      - path: MLXR/Daemon
+        name: Daemon
+        type: group
+
+      # Services
+      - path: MLXR/Services
+        name: Services
+        type: group
+
+      # Views
+      - path: MLXR/Views
+        name: Views
+        type: group
+
+    # Resources
+    resources:
+      - path: MLXR/Resources/Info.plist
+        buildPhase: none  # Info.plist handled by INFOPLIST_FILE setting
+
+      - path: MLXR/Resources/MLXR.entitlements
+        buildPhase: none  # Entitlements handled by CODE_SIGN_ENTITLEMENTS
+
+      - path: MLXR/Resources/Assets.xcassets
+        buildPhase: resources
+
+      - path: MLXR/Resources/ui
+        buildPhase: resources
+        type: folder
+        optional: true  # May not exist until React app is built
+
+      - path: MLXR/Bridge/BridgeInjector.js
+        buildPhase: resources
+
+    # Frameworks and Libraries
+    dependencies:
+      - framework: Cocoa.framework
+        embed: false
+
+      - framework: WebKit.framework
+        embed: false
+
+      - framework: Security.framework
+        embed: false
+
+      - framework: ServiceManagement.framework
+        embed: false
+
+      - framework: UserNotifications.framework
+        embed: false
+
+      # Sparkle will be added here when integrated:
+      # - framework: Sparkle.framework
+      #   embed: true
+      #   carthage: Sparkle
+
+    # Build Phases
+    preBuildScripts:
+      - name: "Check React UI Build"
+        script: |
+          # Check if React UI has been built
+          if [ ! -d "${PROJECT_DIR}/MLXR/Resources/ui/index.html" ]; then
+            echo "warning: React UI not built. Run 'cd app/ui && npm run build' first."
+          fi
+
+    postBuildScripts:
+      - name: "Copy Daemon Binary"
+        script: |
+          # Copy daemon binary into app bundle if it exists
+          DAEMON_SRC="${PROJECT_DIR}/../../build/cmake/bin/mlxrunnerd"
+          DAEMON_DEST="${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/mlxrunnerd"
+
+          if [ -f "$DAEMON_SRC" ]; then
+            echo "Copying daemon binary to app bundle..."
+            cp "$DAEMON_SRC" "$DAEMON_DEST"
+            chmod +x "$DAEMON_DEST"
+          else
+            echo "warning: Daemon binary not found at $DAEMON_SRC"
+          fi
+
+      - name: "Copy Default Config"
+        script: |
+          # Copy default server.yaml into app bundle if it exists
+          CONFIG_SRC="${PROJECT_DIR}/../../configs/server.yaml"
+          CONFIG_DEST="${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/server.yaml"
+
+          if [ -f "$CONFIG_SRC" ]; then
+            echo "Copying default server config to app bundle..."
+            cp "$CONFIG_SRC" "$CONFIG_DEST"
+          else
+            echo "warning: Default config not found at $CONFIG_SRC"
+          fi
+
+    # Info.plist configuration
+    info:
+      path: MLXR/Resources/Info.plist
+      properties:
+        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
+        CFBundleExecutable: $(EXECUTABLE_NAME)
+        CFBundleName: $(PRODUCT_NAME)
+        CFBundleDisplayName: MLXR
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSHumanReadableCopyright: "Copyright © 2025 MLXR. All rights reserved."
+        LSMinimumSystemVersion: "14.0"
+        NSHighResolutionCapable: true
+        NSSupportsAutomaticGraphicsSwitching: true
+        NSPrincipalClass: NSApplication
+        NSMainNibFile: MainMenu
+        LSUIElement: false
+
+        # Update configuration (for Sparkle)
+        SUFeedURL: "https://updates.mlxr.dev/appcast.xml"
+        SUPublicEDKey: ""  # Add EdDSA public key when Sparkle is integrated
+        SUEnableAutomaticChecks: true
+
+    scheme:
+      testTargets: []
+      gatherCoverageData: false
+
+      environmentVariables:
+        - variable: MLXR_DEV_MODE
+          value: "$(MLXR_DEV_MODE)"
+          isEnabled: true
+
+        - variable: OS_ACTIVITY_MODE
+          value: "disable"
+          isEnabled: true
+
+      commandLineArguments:
+        # Uncomment for debugging:
+        # "-com.apple.CoreData.SQLDebug": "1"
+        # "-com.apple.CoreData.Logging.stderr": "1"
+
+  # Test target
+  MLXRTests:
+    type: bundle.unit-test
+    platform: macOS
+
+    sources:
+      - path: MLXRTests
+        name: Tests
+        type: group
+
+    dependencies:
+      - target: MLXR
+        embed: false
+
+      - framework: XCTest.framework
+        embed: false
+
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mlxr.app.tests
+        INFOPLIST_FILE: MLXRTests/Info.plist
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks"
+
+    scheme:
+      testTargets:
+        - MLXRTests
+
+schemes:
+  MLXR:
+    build:
+      targets:
+        MLXR: all
+        MLXRTests: [test]
+
+    run:
+      config: Debug
+      environmentVariables:
+        - variable: MLXR_DEV_MODE
+          value: "1"
+          isEnabled: true
+
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - MLXRTests
+
+    archive:
+      config: Release
+      revealArchiveInOrganizer: true

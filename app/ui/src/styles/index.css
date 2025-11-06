@@ -1,0 +1,522 @@
+/**
+ * Main Stylesheet
+ *
+ * Entry point for all styles in the MLXR app
+ * Includes: Tailwind directives, theme variables, animations, global styles, font imports
+ */
+
+/* Import theme variables and animations */
+@import './theme-variables.css';
+@import './animations.css';
+
+/* Tailwind CSS directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+@layer base {
+  /* CSS Reset additions */
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  img,
+  picture,
+  video,
+  canvas,
+  svg {
+    display: block;
+    max-width: 100%;
+  }
+
+  input,
+  button,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    overflow-wrap: break-word;
+  }
+
+  /* Root element */
+  #root {
+    isolation: isolate;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  /* Typography base */
+  body {
+    @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+      'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans',
+      'Helvetica Neue', sans-serif;
+  }
+
+  /* Monospace font for code */
+  code,
+  pre,
+  kbd,
+  samp {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono',
+      'Courier New', monospace;
+    font-size: 0.9em;
+  }
+
+  /* Headings */
+  h1 {
+    @apply text-4xl font-bold tracking-tight;
+  }
+
+  h2 {
+    @apply text-3xl font-semibold tracking-tight;
+  }
+
+  h3 {
+    @apply text-2xl font-semibold tracking-tight;
+  }
+
+  h4 {
+    @apply text-xl font-semibold tracking-tight;
+  }
+
+  h5 {
+    @apply text-lg font-semibold;
+  }
+
+  h6 {
+    @apply text-base font-semibold;
+  }
+
+  /* Links */
+  a {
+    @apply text-primary underline-offset-4 hover:underline;
+  }
+
+  /* Focus visible styling */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2;
+  }
+
+  /* Selection styling */
+  ::selection {
+    @apply bg-primary text-primary-foreground;
+  }
+}
+
+/* Component layer - custom component styles */
+@layer components {
+  /* Code blocks */
+  .code-block {
+    @apply rounded-lg p-4 overflow-x-auto;
+    background-color: hsl(var(--code-background));
+    color: hsl(var(--code-foreground));
+  }
+
+  .code-block code {
+    @apply text-sm;
+  }
+
+  /* Inline code */
+  .inline-code {
+    @apply rounded bg-muted px-1.5 py-0.5 text-sm font-mono;
+  }
+
+  /* Message bubbles */
+  .message-user {
+    @apply rounded-lg p-4;
+    background-color: hsl(var(--message-user-background));
+    color: hsl(var(--message-user-foreground));
+  }
+
+  .message-assistant {
+    @apply rounded-lg p-4;
+    background-color: hsl(var(--message-assistant-background));
+    color: hsl(var(--message-assistant-foreground));
+  }
+
+  /* Cards */
+  .card-hover {
+    @apply transition-all duration-200 hover:shadow-md hover:border-accent;
+  }
+
+  /* Status indicators */
+  .status-dot {
+    @apply inline-block w-2 h-2 rounded-full;
+  }
+
+  .status-dot.running {
+    background-color: hsl(var(--status-running));
+  }
+
+  .status-dot.stopped {
+    background-color: hsl(var(--status-stopped));
+  }
+
+  .status-dot.loading {
+    background-color: hsl(var(--status-loading));
+    animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .status-dot.error {
+    background-color: hsl(var(--status-error));
+  }
+
+  /* Loading spinner */
+  .spinner {
+    @apply inline-block w-4 h-4 border-2 border-current border-r-transparent rounded-full animate-spin;
+  }
+
+  /* Metric badges */
+  .metric-positive {
+    color: hsl(var(--metric-positive));
+  }
+
+  .metric-negative {
+    color: hsl(var(--metric-negative));
+  }
+
+  .metric-neutral {
+    color: hsl(var(--metric-neutral));
+  }
+
+  /* Layout components */
+  .sidebar {
+    background-color: hsl(var(--sidebar-background));
+    color: hsl(var(--sidebar-foreground));
+    @apply border-r;
+    border-color: hsl(var(--sidebar-border));
+  }
+
+  .statusbar {
+    background-color: hsl(var(--statusbar-background));
+    color: hsl(var(--statusbar-foreground));
+    @apply border-t;
+    border-color: hsl(var(--statusbar-border));
+  }
+
+  .composer {
+    background-color: hsl(var(--composer-background));
+    @apply border rounded-lg;
+    border-color: hsl(var(--composer-border));
+  }
+
+  /* Prose styling for markdown content */
+  .prose {
+    @apply text-foreground max-w-none;
+  }
+
+  .prose :where(p):not(:where([class~='not-prose'] *)) {
+    @apply my-4;
+  }
+
+  .prose :where(a):not(:where([class~='not-prose'] *)) {
+    @apply text-primary hover:underline;
+  }
+
+  .prose :where(strong):not(:where([class~='not-prose'] *)) {
+    @apply font-semibold;
+  }
+
+  .prose :where(code):not(:where([class~='not-prose'] *)) {
+    @apply inline-code;
+  }
+
+  .prose :where(pre):not(:where([class~='not-prose'] *)) {
+    @apply code-block my-4;
+  }
+
+  .prose :where(ul):not(:where([class~='not-prose'] *)) {
+    @apply list-disc list-inside my-4;
+  }
+
+  .prose :where(ol):not(:where([class~='not-prose'] *)) {
+    @apply list-decimal list-inside my-4;
+  }
+
+  .prose :where(li):not(:where([class~='not-prose'] *)) {
+    @apply my-1;
+  }
+
+  .prose :where(blockquote):not(:where([class~='not-prose'] *)) {
+    @apply border-l-4 border-border pl-4 italic my-4;
+  }
+
+  .prose :where(hr):not(:where([class~='not-prose'] *)) {
+    @apply border-border my-8;
+  }
+
+  .prose :where(table):not(:where([class~='not-prose'] *)) {
+    @apply w-full border-collapse my-4;
+  }
+
+  .prose :where(th):not(:where([class~='not-prose'] *)) {
+    @apply border border-border bg-muted px-4 py-2 text-left font-semibold;
+  }
+
+  .prose :where(td):not(:where([class~='not-prose'] *)) {
+    @apply border border-border px-4 py-2;
+  }
+
+  /* Virtual list items */
+  .virtual-item {
+    @apply absolute top-0 left-0 w-full;
+  }
+
+  /* Keyboard shortcut display */
+  .kbd {
+    @apply inline-flex items-center justify-center px-2 py-1 text-xs font-mono font-medium bg-muted border border-border rounded;
+  }
+
+  /* Toast/notification styling */
+  .toast {
+    @apply rounded-lg border bg-card text-card-foreground shadow-lg;
+  }
+
+  .toast.success {
+    border-color: hsl(var(--success));
+  }
+
+  .toast.error {
+    border-color: hsl(var(--destructive));
+  }
+
+  .toast.warning {
+    border-color: hsl(var(--warning));
+  }
+
+  .toast.info {
+    border-color: hsl(var(--info));
+  }
+
+  /* Command palette */
+  .command-palette {
+    @apply rounded-lg border bg-popover text-popover-foreground shadow-md;
+  }
+
+  .command-item {
+    @apply flex items-center gap-2 px-3 py-2 rounded-md transition-colors;
+  }
+
+  .command-item[aria-selected='true'] {
+    @apply bg-accent text-accent-foreground;
+  }
+
+  /* Drawer/modal overlay */
+  .overlay {
+    @apply fixed inset-0 bg-black/50 backdrop-blur-sm;
+  }
+
+  /* Metrics chart container */
+  .chart-container {
+    @apply w-full h-full min-h-[300px];
+  }
+
+  /* Empty state */
+  .empty-state {
+    @apply flex flex-col items-center justify-center gap-4 p-8 text-center text-muted-foreground;
+  }
+
+  /* Error state */
+  .error-state {
+    @apply flex flex-col items-center justify-center gap-4 p-8 text-center text-destructive;
+  }
+
+  /* Loading state */
+  .loading-state {
+    @apply flex flex-col items-center justify-center gap-4 p-8 text-center text-muted-foreground;
+  }
+}
+
+/* Utility layer - custom utilities */
+@layer utilities {
+  /* Text utilities */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  /* Container queries */
+  .container-normal {
+    container-type: normal;
+  }
+
+  .container-inline {
+    container-type: inline-size;
+  }
+
+  .container-size {
+    container-type: size;
+  }
+
+  /* Safe area insets for macOS */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-left {
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .safe-right {
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Truncate text with ellipsis */
+  .truncate-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .truncate-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Gradient backgrounds */
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  }
+
+  .gradient-destructive {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--destructive)),
+      hsl(var(--destructive) / 0.8)
+    );
+  }
+
+  .gradient-success {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--success)),
+      hsl(var(--success) / 0.8)
+    );
+  }
+
+  /* Backdrop blur utilities */
+  .backdrop-blur-xs {
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+
+  .backdrop-blur-sm {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+
+  .backdrop-blur-md {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .backdrop-blur-lg {
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .backdrop-blur-xl {
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+    color: black;
+  }
+
+  a {
+    text-decoration: underline;
+  }
+
+  .sidebar,
+  .statusbar,
+  .composer {
+    display: none;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --border: 0 0% 30%;
+    --ring: 222.2 84% 4.9%;
+  }
+
+  .dark {
+    --border: 0 0% 70%;
+    --ring: 210 40% 98%;
+  }
+}
+
+/* Dark mode specific adjustments */
+.dark .code-block {
+  /* Enhanced contrast for code blocks in dark mode */
+  border: 1px solid hsl(var(--border));
+}
+
+.dark .shadow-sm {
+  /* Slightly lighter shadows in dark mode */
+  box-shadow: 0 1px 2px 0 rgb(255 255 255 / 0.05);
+}
+
+.dark .shadow {
+  box-shadow: 0 1px 3px 0 rgb(255 255 255 / 0.1),
+    0 1px 2px -1px rgb(255 255 255 / 0.1);
+}
+
+.dark .shadow-md {
+  box-shadow: 0 4px 6px -1px rgb(255 255 255 / 0.1),
+    0 2px 4px -2px rgb(255 255 255 / 0.1);
+}
+
+.dark .shadow-lg {
+  box-shadow: 0 10px 15px -3px rgb(255 255 255 / 0.1),
+    0 4px 6px -4px rgb(255 255 255 / 0.1);
+}

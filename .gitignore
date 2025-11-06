@@ -215,3 +215,7 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+
+
+!app/ui/src/components/logs
+!app/ui/src/lib

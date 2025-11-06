@@ -15,6 +15,9 @@
 namespace mlxr {
 namespace graph {
 
+// Forward declaration
+struct KVCache;
+
 /**
  * @brief RMS Normalization layer
  *
@@ -43,7 +46,7 @@ class RMSNorm {
   const Tensor& weight() const;
 
  private:
-  int dim_;
+  [[maybe_unused]] int dim_;
   float eps_;
   Tensor weight_;
 };
@@ -83,8 +86,8 @@ class Linear {
   const Tensor* bias() const;
 
  private:
-  int in_features_;
-  int out_features_;
+  [[maybe_unused]] int in_features_;
+  [[maybe_unused]] int out_features_;
   bool has_bias_;
   Tensor weight_;
   Tensor bias_;
@@ -115,6 +118,18 @@ class RotaryEmbedding {
   std::pair<Tensor, Tensor> forward(const Tensor& q, const Tensor& k,
                                     int offset = 0);
 
+  /**
+   * @brief Get cached cosine table for Metal kernels
+   * @return Cosine table [max_seq_len, head_dim/2]
+   */
+  const Tensor& cos_table() const { return cos_cached_; }
+
+  /**
+   * @brief Get cached sine table for Metal kernels
+   * @return Sine table [max_seq_len, head_dim/2]
+   */
+  const Tensor& sin_table() const { return sin_cached_; }
+
  private:
   void compute_freqs();
 
@@ -135,18 +150,24 @@ class Attention {
   /**
    * @brief Construct attention layer
    * @param hidden_size Hidden dimension
-   * @param num_heads Number of attention heads
+   * @param num_heads Number of query/output attention heads
    * @param max_seq_len Maximum sequence length
+   * @param num_kv_heads Number of key/value heads (for GQA, defaults to
+   * num_heads for MHA)
    */
-  Attention(int hidden_size, int num_heads, int max_seq_len);
+  Attention(int hidden_size, int num_heads, int max_seq_len,
+            int num_kv_heads = -1);
 
   /**
    * @brief Apply attention
    * @param x Input tensor [batch, seq_len, hidden_size]
    * @param mask Optional attention mask
+   * @param kv_cache Optional KV cache for incremental inference
+   * @param layer_idx Layer index in the model (for cache access)
    * @return Attention output [batch, seq_len, hidden_size]
    */
-  Tensor forward(const Tensor& x, const Tensor* mask = nullptr);
+  Tensor forward(const Tensor& x, const Tensor* mask = nullptr,
+                 KVCache* kv_cache = nullptr, int layer_idx = 0);
 
   /**
    * @brief Get query projection layer
@@ -175,7 +196,8 @@ class Attention {
 
  private:
   int hidden_size_;
-  int num_heads_;
+  int num_heads_;     // Number of query heads
+  int num_kv_heads_;  // Number of key/value heads (for GQA)
   int head_dim_;
 
   Linear q_proj_;
@@ -222,8 +244,8 @@ class MLP {
   Linear& down_proj();
 
  private:
-  int hidden_size_;
-  int intermediate_size_;
+  [[maybe_unused]] int hidden_size_;
+  [[maybe_unused]] int intermediate_size_;
 
   Linear gate_proj_;
   Linear up_proj_;
@@ -244,17 +266,23 @@ class TransformerBlock {
    * @param intermediate_size MLP intermediate dimension
    * @param max_seq_len Maximum sequence length
    * @param norm_eps RMSNorm epsilon
+   * @param num_kv_heads Number of KV heads for GQA (defaults to num_heads for
+   * MHA)
    */
   TransformerBlock(int hidden_size, int num_heads, int intermediate_size,
-                   int max_seq_len, float norm_eps = 1e-6f);
+                   int max_seq_len, float norm_eps = 1e-6f,
+                   int num_kv_heads = -1);
 
   /**
    * @brief Apply transformer block
    * @param x Input tensor [batch, seq_len, hidden_size]
    * @param mask Optional attention mask
+   * @param kv_cache Optional KV cache for incremental inference
+   * @param layer_idx Layer index in the model (for cache access)
    * @return Output tensor [batch, seq_len, hidden_size]
    */
-  Tensor forward(const Tensor& x, const Tensor* mask = nullptr);
+  Tensor forward(const Tensor& x, const Tensor* mask = nullptr,
+                 KVCache* kv_cache = nullptr, int layer_idx = 0);
 
   /**
    * @brief Get attention sublayer
@@ -277,7 +305,7 @@ class TransformerBlock {
   RMSNorm& post_attention_layernorm();
 
  private:
-  int hidden_size_;
+  [[maybe_unused]] int hidden_size_;
 
   RMSNorm input_layernorm_;
   Attention attention_;

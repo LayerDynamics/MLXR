@@ -1,6 +1,6 @@
 # MLXR Development Makefile
 
-.PHONY: help setup install install-dev clean build test format lint metal cmake
+.PHONY: help setup install install-dev clean build test format lint metal cmake test-cpp test-cpp-verbose test-all app-xcode app-ui app app-dev app-run app-sign app-dmg app-release app-setup-test app-test app-test-verbose app-test-coverage app-test-only app-test-suite app-test-open app-test-check app-test-clean app-test-all
 
 # Default target
 help:
@@ -23,13 +23,38 @@ help:
 	@echo "  install-dev   - Install with development dependencies"
 	@echo ""
 	@echo "Testing:"
-	@echo "  test          - Run all tests"
+	@echo "  test          - Run Python tests (pytest)"
+	@echo "  test-cpp      - Run C++ unit tests"
+	@echo "  test-cpp-verbose - Run C++ unit tests with verbose output"
+	@echo "  test-all      - Run all tests (C++ and Python)"
 	@echo "  test-phase0   - Run Phase 0 validation tests"
 	@echo "  validate      - Quick validation"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  format        - Format code (black, clang-format)"
 	@echo "  lint          - Lint code (ruff, mypy)"
+	@echo ""
+	@echo "macOS App - Build:"
+	@echo "  app-xcode     - Setup Xcode project (using XcodeGen)"
+	@echo "  app-ui        - Build React UI"
+	@echo "  app           - Build complete macOS app"
+	@echo "  app-dev       - Build app in development mode"
+	@echo "  app-run       - Build and run app"
+	@echo "  app-sign      - Sign the app"
+	@echo "  app-dmg       - Create DMG installer"
+	@echo "  app-release   - Full release build (build + sign + dmg)"
+	@echo ""
+	@echo "macOS App - Testing:"
+	@echo "  app-setup-test    - Complete test environment setup"
+	@echo "  app-test          - Run all automated tests"
+	@echo "  app-test-verbose  - Run tests with verbose output"
+	@echo "  app-test-coverage - Run tests with code coverage"
+	@echo "  app-test-only     - Run specific test suite (SUITE=BridgeTests)"
+	@echo "  app-test-suite    - List available test suites"
+	@echo "  app-test-open     - Open Xcode for interactive testing"
+	@echo "  app-test-check    - Validate test environment"
+	@echo "  app-test-clean    - Clean test artifacts"
+	@echo "  app-test-all      - Full test workflow (setup + test)"
 	@echo ""
 	@echo "Cleanup:"
 	@echo "  clean         - Clean build artifacts"
@@ -175,6 +200,26 @@ build: metal cmake
 test:
 	pytest tests/ -v
 
+test-cpp:
+	@if [ ! -f "build/cmake/bin/mlxr_unit_tests" ]; then \
+		echo "❌ C++ unit tests not built. Run 'make build' first."; \
+		exit 1; \
+	fi
+	@echo "Running C++ unit tests..."
+	cd build/cmake && ctest --output-on-failure
+
+test-cpp-verbose:
+	@if [ ! -f "build/cmake/bin/mlxr_unit_tests" ]; then \
+		echo "❌ C++ unit tests not built. Run 'make build' first."; \
+		exit 1; \
+	fi
+	@echo "Running C++ unit tests (verbose)..."
+	./build/cmake/bin/mlxr_unit_tests --gtest_color=yes
+
+test-all: test-cpp test
+	@echo ""
+	@echo "✓ All tests passed!"
+
 test-phase0:
 	python3 tests/test_metal_compilation.py
 
@@ -230,5 +275,217 @@ dev-full: install-dev metal
 	@echo "✓ Full development environment ready!"
 
 # Quick validation
-validate: test-phase0
-	@echo "✓ Phase 0 validation passed!"
+validate: test-phase0 test-cpp
+	@echo ""
+	@echo "✓ Phase 1 validation passed!"
+
+# ============================================================================
+# macOS App Build Targets
+# ============================================================================
+
+# Setup Xcode project (using XcodeGen)
+app-xcode:
+	@echo "Setting up Xcode project..."
+	./scripts/setup_xcode_project.sh
+
+# Build frontend (React UI)
+app-ui:
+	@echo "Building React UI..."
+	cd app/ui && npm install && npm run build
+	@echo "✓ React UI built"
+
+# Build macOS app
+app: app-ui
+	@echo "Building MLXR.app..."
+	./scripts/build_app.sh
+	@echo "✓ MLXR.app built"
+
+# Build and run app
+app-run: app
+	@echo "Launching MLXR.app..."
+	open build/macos/MLXR.app
+
+# Build app in development mode (loads from dev server)
+app-dev:
+	@echo "Building MLXR.app (development mode)..."
+	MLXR_DEV_MODE=1 ./scripts/build_app.sh Debug
+	@echo ""
+	@echo "Start the dev server in another terminal:"
+	@echo "  cd app/ui && npm run dev"
+	@echo ""
+	@echo "Then run the app:"
+	@echo "  make app-run"
+
+# Sign the app
+app-sign: app
+	@echo "Signing MLXR.app..."
+	./scripts/sign_app.sh
+	@echo "✓ App signed"
+
+# Create DMG
+app-dmg: app
+	@echo "Creating DMG..."
+	./scripts/create_dmg.sh
+	@echo "✓ DMG created"
+
+# Full app release build (build + sign + dmg)
+app-release: app-sign app-dmg
+	@echo "✓ Release build complete!"
+	@echo ""
+	@echo "Artifacts:"
+	@ls -lh build/*.dmg
+
+# ============================================================================
+# macOS App Testing Targets
+# ============================================================================
+
+# Complete setup for testing (Xcode + UI + Daemon)
+app-setup-test: app-xcode app-ui build
+	@echo ""
+	@echo "✓ Test environment setup complete!"
+	@echo ""
+	@echo "Ready to run tests:"
+	@echo "  make app-test          - Run all automated tests"
+	@echo "  make app-test-verbose  - Run tests with verbose output"
+	@echo "  make app-test-coverage - Run tests with code coverage report"
+
+# Run automated tests (requires app-xcode first)
+app-test:
+	@echo "Running MLXR app tests..."
+	@if [ ! -d "app/macos/MLXR.xcodeproj" ]; then \
+		echo "❌ Xcode project not found. Run 'make app-xcode' first."; \
+		exit 1; \
+	fi
+	@xcodebuild test \
+		-project app/macos/MLXR.xcodeproj \
+		-scheme MLXR \
+		-destination 'platform=macOS,arch=arm64' \
+		-quiet
+	@echo "✓ All tests passed!"
+
+# Run tests with verbose output
+app-test-verbose:
+	@echo "Running MLXR app tests (verbose)..."
+	@if [ ! -d "app/macos/MLXR.xcodeproj" ]; then \
+		echo "❌ Xcode project not found. Run 'make app-xcode' first."; \
+		exit 1; \
+	fi
+	xcodebuild test \
+		-project app/macos/MLXR.xcodeproj \
+		-scheme MLXR \
+		-destination 'platform=macOS,arch=arm64'
+
+# Run tests with code coverage
+app-test-coverage:
+	@echo "Running MLXR app tests with code coverage..."
+	@if [ ! -d "app/macos/MLXR.xcodeproj" ]; then \
+		echo "❌ Xcode project not found. Run 'make app-xcode' first."; \
+		exit 1; \
+	fi
+	xcodebuild test \
+		-project app/macos/MLXR.xcodeproj \
+		-scheme MLXR \
+		-destination 'platform=macOS,arch=arm64' \
+		-enableCodeCoverage YES
+	@echo ""
+	@echo "✓ Tests completed with coverage data!"
+	@echo ""
+	@echo "To view coverage report:"
+	@echo "  1. Open app/macos/MLXR.xcodeproj in Xcode"
+	@echo "  2. Go to Report Navigator (Cmd+9)"
+	@echo "  3. Select latest test run"
+	@echo "  4. Click 'Coverage' tab"
+
+# Run specific test suite
+app-test-suite:
+	@echo "Available test suites:"
+	@echo "  1. BridgeTests"
+	@echo "  2. DaemonManagerTests"
+	@echo "  3. ServicesTests"
+	@echo "  4. IntegrationTests"
+	@echo ""
+	@echo "Usage: make app-test-only SUITE=BridgeTests"
+
+# Run specific test (requires SUITE variable)
+app-test-only:
+	@if [ -z "$(SUITE)" ]; then \
+		echo "❌ Error: SUITE variable required"; \
+		echo "Usage: make app-test-only SUITE=BridgeTests"; \
+		exit 1; \
+	fi
+	@echo "Running $(SUITE)..."
+	xcodebuild test \
+		-project app/macos/MLXR.xcodeproj \
+		-scheme MLXR \
+		-destination 'platform=macOS,arch=arm64' \
+		-only-testing:MLXRTests/$(SUITE)
+
+# Open test results in Xcode
+app-test-open:
+	@echo "Opening Xcode for testing..."
+	@if [ ! -d "app/macos/MLXR.xcodeproj" ]; then \
+		echo "❌ Xcode project not found. Run 'make app-xcode' first."; \
+		exit 1; \
+	fi
+	open app/macos/MLXR.xcodeproj
+	@echo ""
+	@echo "To run tests in Xcode:"
+	@echo "  1. Press Cmd+U to run all tests"
+	@echo "  2. Or use Test Navigator (Cmd+6) to run specific tests"
+
+# Validate test environment
+app-test-check:
+	@echo "=== Test Environment Check ==="
+	@echo ""
+	@echo "Xcode Project:"
+	@if [ -d "app/macos/MLXR.xcodeproj" ]; then \
+		echo "  ✓ Xcode project exists"; \
+	else \
+		echo "  ❌ Xcode project missing (run: make app-xcode)"; \
+	fi
+	@echo ""
+	@echo "React UI:"
+	@if [ -d "app/ui/dist" ]; then \
+		echo "  ✓ React UI built"; \
+	else \
+		echo "  ❌ React UI not built (run: make app-ui)"; \
+	fi
+	@echo ""
+	@echo "Daemon Binary:"
+	@if [ -f "build/cmake/bin/mlxrunnerd" ]; then \
+		echo "  ✓ Daemon binary exists"; \
+	else \
+		echo "  ⚠️  Daemon binary missing (run: make build)"; \
+		echo "     Note: Some tests may fail without daemon"; \
+	fi
+	@echo ""
+	@echo "Test Files:"
+	@TEST_COUNT=$$(find app/macos/MLXRTests -name "*.swift" 2>/dev/null | wc -l | tr -d ' '); \
+	if [ $$TEST_COUNT -gt 0 ]; then \
+		echo "  ✓ $$TEST_COUNT test files found"; \
+	else \
+		echo "  ❌ No test files found"; \
+	fi
+
+# Clean test artifacts
+app-test-clean:
+	@echo "Cleaning test artifacts..."
+	@rm -rf app/macos/build
+	@rm -rf app/macos/DerivedData
+	@echo "✓ Test artifacts cleaned"
+
+# Full test workflow (setup + run tests)
+app-test-all: app-setup-test app-test
+	@echo ""
+	@echo "✓ Complete test workflow finished!"
+	@ls -lh build/macos/MLXR.app
+
+# Clean app build artifacts
+app-clean:
+	@echo "Cleaning app build artifacts..."
+	rm -rf build/macos
+	rm -f build/*.dmg
+	cd app/ui && rm -rf dist node_modules/.vite
+	@echo "✓ App artifacts cleaned"
+
+.PHONY: app-ui app app-run app-dev app-sign app-dmg app-release app-clean

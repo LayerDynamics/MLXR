@@ -57,6 +57,7 @@ include_directories(${CMAKE_SOURCE_DIR}/third_party)
 option(BUILD_TESTS "Build test suite" ON)
 option(BUILD_DAEMON "Build daemon executable" ON)
 option(BUILD_TOOLS "Build conversion and utility tools" ON)
+option(BUILD_EXAMPLES "Build example programs" ON)
 option(ENABLE_METAL_VALIDATION "Enable Metal API validation (slower, for debugging)" OFF)
 
 # Subdirectories
@@ -68,6 +69,10 @@ endif()
 
 if(BUILD_TOOLS)
     add_subdirectory(tools)
+endif()
+
+if(BUILD_EXAMPLES)
+    add_subdirectory(examples)
 endif()
 
 if(BUILD_TESTS)
@@ -93,5 +98,6 @@ message(STATUS "  MLX version:          ${MLX_VERSION}")
 message(STATUS "  Build tests:          ${BUILD_TESTS}")
 message(STATUS "  Build daemon:         ${BUILD_DAEMON}")
 message(STATUS "  Build tools:          ${BUILD_TOOLS}")
+message(STATUS "  Build examples:       ${BUILD_EXAMPLES}")
 message(STATUS "  Metal validation:     ${ENABLE_METAL_VALIDATION}")
 message(STATUS "")

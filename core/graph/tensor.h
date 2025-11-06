@@ -17,6 +17,16 @@
 namespace mlxr {
 namespace graph {
 
+// Helper function to convert std::vector to mlx::core::Shape
+inline mlx::core::Shape to_shape(const std::vector<int>& vec) {
+  return mlx::core::Shape(vec.begin(), vec.end());
+}
+
+// Helper function to convert mlx::core::Shape to std::vector
+inline std::vector<int> from_shape(const mlx::core::Shape& shape) {
+  return std::vector<int>(shape.begin(), shape.end());
+}
+
 /**
  * @brief Tensor wrapper around MLX array
  *
