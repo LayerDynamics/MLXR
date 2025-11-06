@@ -56,9 +56,27 @@ MLXR is a local LLM runner built specifically for Apple Silicon (M4, M3, M2) tha
 - macOS 14.0 (Sonoma) or later
 - Apple Silicon (M2, M3, or M4)
 - Xcode 15+ (for building)
+- Homebrew package manager
 - CMake 3.20+
 - Python 3.11+ (with MLX installed)
 - Node.js 18+ (for frontend development)
+
+### System Dependencies
+
+The following Homebrew packages are required:
+
+```bash
+# Install all dependencies at once
+brew install cmake ninja mlx sentencepiece nlohmann-json cpp-httplib
+
+# Or install individually
+brew install cmake          # Build system
+brew install ninja          # Fast build tool
+brew install mlx            # Apple's ML framework
+brew install sentencepiece  # Tokenization library
+brew install nlohmann-json  # JSON for C++
+brew install cpp-httplib    # HTTP server library
+```
 
 ## Project Status
 
@@ -89,29 +107,55 @@ MLXR/
   plan/          # Architecture specifications
 ```
 
-## Building
+## Getting Started
+
+### 1. Install Dependencies
 
 ```bash
+# Install Homebrew (if not already installed)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
 # Clone the repository
 git clone <repository-url>
 cd MLXR
 
-# Build Metal kernels
-./scripts/build_metal.sh
+# Install system dependencies
+make install-deps
 
-# Build core engine
-mkdir build && cd build
-cmake ..
-make
+# Setup Python environment (recommended)
+make setup
+conda activate mlxr
 
+# Check installation
+make status
+```
+
+### 2. Build
+
+```bash
+# Full build (Metal shaders + C++ core)
+make build
+
+# Or quick development build (Metal only)
+make dev
+
+# Run tests
+make test-cpp
+```
+
+### 3. Run
+
+```bash
 # Run daemon
-./scripts/run_daemon.sh
+./build/cmake/bin/mlxrunnerd
 
 # Develop frontend (separate terminal)
 cd app/ui
 yarn install
 yarn dev
 ```
+
+For detailed build instructions, see [CLAUDE.md](CLAUDE.md).
 
 ## Development Phases
 

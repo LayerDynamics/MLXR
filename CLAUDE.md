@@ -457,11 +457,34 @@ See [app/ui/COMPONENTS.md](app/ui/COMPONENTS.md) for complete component document
 
 ### Toolchain Requirements
 
+**System Tools:**
 - Xcode (latest stable) for Swift/ObjC compilation
-- CMake for C++ core and runtime
+- CMake 3.20+ for C++ core and runtime
+- Ninja build system
 - Metal compiler (`xcrun metal`)
-- Node.js + Yarn for React frontend
+- Homebrew package manager
+
+**Homebrew Dependencies:**
+```bash
+# Install system dependencies
+brew install cmake ninja mlx sentencepiece nlohmann-json cpp-httplib
+
+# Or use the Makefile target
+make install-deps
+```
+
+Required packages:
+- `mlx` - Apple's machine learning framework
+- `sentencepiece` - Tokenization library (required by core/runtime/tokenizer)
+- `nlohmann-json` - JSON library for C++ (required by daemon)
+- `cpp-httplib` - HTTP server library (required by daemon/server)
+
+**Frontend:**
+- Node.js 18+ + Yarn for React frontend
+
+**Python:**
 - Python 3.11+ with MLX for model authoring/prototyping
+- Conda or virtualenv recommended (see `environment.yml`)
 
 ### Build Targets
 
