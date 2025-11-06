@@ -27,6 +27,7 @@ This directory contains GitHub Actions workflows for continuous integration, tes
 - macOS 14 (Sonoma) runner with Apple Silicon
 - Xcode with Metal compiler
 - MLX framework via Homebrew
+- SentencePiece via Homebrew (for tokenization)
 
 **Example:** Every push to a branch automatically:
 - Compiles Metal kernels
@@ -61,6 +62,7 @@ This directory contains GitHub Actions workflows for continuous integration, tes
 **Requirements:**
 - macOS 14 runner
 - Node.js for UI build
+- SentencePiece for tokenization
 - XcodeGen (optional, for project generation)
 
 **Usage:**
@@ -98,6 +100,7 @@ git push origin v1.0.0
 
 **Requirements:**
 - macOS 14 runner
+- MLX and SentencePiece via Homebrew
 - ApacheBench for stress testing
 
 **Example Tests:**
@@ -200,6 +203,7 @@ curl http://127.0.0.1:11434/health
 - Check CMake configuration in `CMakeLists.txt`
 - Verify dependencies: `brew list`
 - Check MLX installation: `python -c "import mlx"`
+- Ensure SentencePiece is installed: `brew list sentencepiece`
 
 **Daemon fails to start:**
 - Check for port conflicts: `lsof -i :11434`

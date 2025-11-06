@@ -54,7 +54,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install cmake ninja mlx
+          brew install cmake ninja mlx sentencepiece
 
       - name: Download Metal libraries
         uses: actions/download-artifact@v4
@@ -101,7 +101,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install mlx
+          brew install mlx sentencepiece
 
       - name: Download Metal libraries
         uses: actions/download-artifact@v4

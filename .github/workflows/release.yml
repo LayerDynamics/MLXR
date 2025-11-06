@@ -40,7 +40,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install cmake ninja mlx node
+          brew install cmake ninja mlx sentencepiece node
 
       - name: Set up Conda
         uses: conda-incubator/setup-miniconda@v3
