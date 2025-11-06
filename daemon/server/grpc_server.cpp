@@ -484,7 +484,7 @@ grpc::Status GrpcServiceImpl::Generate(
 
     // Token callback for streaming
     auto start_time = std::chrono::steady_clock::now();
-    sched_req->token_callback = [writer, model = request->model(), start_time](int token_id, bool finished) {
+    sched_req->token_callback = [this, writer, model = request->model(), start_time](int token_id, bool finished) {
         mlxrunner::v1::GenerateResponse resp;
         resp.set_model(model);
         resp.set_created_at(GetTimestamp());
@@ -553,7 +553,7 @@ grpc::Status GrpcServiceImpl::Chat(
     // Token callback for streaming
     auto start_time = std::chrono::steady_clock::now();
     auto accumulated = std::make_shared<std::string>();  // Shared for lambda capture
-    sched_req->token_callback = [writer, model = request->model(), start_time, accumulated](int token_id, bool finished) {
+    sched_req->token_callback = [this, writer, model = request->model(), start_time, accumulated](int token_id, bool finished) {
         // TODO: Decode token_id to text using tokenizer
         *accumulated += std::to_string(token_id);  // Placeholder
 

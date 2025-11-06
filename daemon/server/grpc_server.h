@@ -8,12 +8,16 @@
 // Include generated protobuf/gRPC headers
 #include "mlxrunner.grpc.pb.h"
 
+// Include headers for types used in method signatures
+#include "scheduler/request.h"      // for mlxr::scheduler::SamplingParams
+#include "registry/model_registry.h" // for ModelRegistry::ModelInfo
+
 namespace mlxr {
 
 // Forward declarations
 class Scheduler;
-class ModelRegistry;
 class MetricsCollector;
+class GrpcServiceImpl;
 
 /**
  * @brief gRPC server for MLXR daemon
@@ -65,7 +69,7 @@ private:
     std::shared_ptr<MetricsCollector> metrics_;
 
     std::unique_ptr<grpc::Server> server_;
-    std::unique_ptr<mlxrunner::v1::MLXRunnerService::AsyncService> service_;
+    std::unique_ptr<GrpcServiceImpl> service_;
 
     std::thread server_thread_;
     std::atomic<bool> running_{false};
