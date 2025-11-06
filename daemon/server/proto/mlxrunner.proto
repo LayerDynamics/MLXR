@@ -245,11 +245,15 @@ message CompletionChoice {
   string finish_reason = 3;
 }
 
+message TextArray {
+  repeated string values = 1;
+}
+
 message EmbeddingRequest {
   string model = 1;
   oneof input {
     string text = 2;
-    repeated string texts = 3;
+    TextArray texts = 3;
   }
   string encoding_format = 4;
   string user = 5;
