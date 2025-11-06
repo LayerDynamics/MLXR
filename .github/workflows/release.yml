@@ -38,10 +38,14 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "Building version: $VERSION"
 
-      - name: Install and cache dependencies
+      - name: Install CMake and Ninja
+        run: |
+          brew install cmake ninja
+
+      - name: Install and cache other dependencies
         uses: tecolicom/actions-use-homebrew-tools@v1
         with:
-          tools: cmake ninja mlx sentencepiece nlohmann-json cpp-httplib googletest node
+          tools: mlx sentencepiece nlohmann-json cpp-httplib googletest node
           cache: yes
 
       - name: Set up Conda
