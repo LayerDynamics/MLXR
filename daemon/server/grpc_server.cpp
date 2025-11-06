@@ -19,8 +19,8 @@ namespace mlxr {
 
 GrpcServer::GrpcServer(const Config& config,
                        std::shared_ptr<Scheduler> scheduler,
-                       std::shared_ptr<ModelRegistry> registry,
-                       std::shared_ptr<MetricsCollector> metrics)
+                       std::shared_ptr<registry::ModelRegistry> registry,
+                       std::shared_ptr<telemetry::MetricsRegistry> metrics)
     : config_(config),
       scheduler_(scheduler),
       registry_(registry),
@@ -149,8 +149,8 @@ void GrpcServer::ConfigureBuilder(grpc::ServerBuilder& builder) {
 // ============================================================================
 
 GrpcServiceImpl::GrpcServiceImpl(std::shared_ptr<Scheduler> scheduler,
-                                 std::shared_ptr<ModelRegistry> registry,
-                                 std::shared_ptr<MetricsCollector> metrics)
+                                 std::shared_ptr<registry::ModelRegistry> registry,
+                                 std::shared_ptr<telemetry::MetricsRegistry> metrics)
     : scheduler_(scheduler),
       registry_(registry),
       metrics_(metrics),
@@ -177,9 +177,9 @@ grpc::Status GrpcServiceImpl::Health(
     response->set_requests_processed(requests_processed_.load());
 
     // Loaded models
-    auto models = registry_->ListModels();
+    auto models = registry_->list_models();
     for (const auto& model : models) {
-        if (model.loaded) {
+        if (model.is_loaded) {
             response->add_loaded_models(model.name);
         }
     }
@@ -192,20 +192,17 @@ grpc::Status GrpcServiceImpl::GetStatus(
     const mlxrunner::v1::StatusRequest* request,
     mlxrunner::v1::StatusResponse* response) {
 
-    auto stats = scheduler_->GetStats();
+    auto stats = scheduler_->get_stats();
 
-    response->set_pending_requests(stats.pending_requests);
-    response->set_active_requests(stats.running_requests);
-    response->set_current_batch_size(stats.current_batch_size);
+    response->set_pending_requests(stats.waiting_requests);
+    response->set_active_requests(stats.prefilling_requests + stats.decoding_requests);
+    response->set_current_batch_size(stats.prefilling_requests + stats.decoding_requests);
 
-    response->set_kv_blocks_used(stats.kv_blocks_used);
-    response->set_kv_blocks_total(stats.kv_blocks_total);
-    response->set_kv_utilization_percent(
-        stats.kv_blocks_total > 0 ?
-        (100.0f * stats.kv_blocks_used / stats.kv_blocks_total) : 0.0f
-    );
+    response->set_kv_blocks_used(stats.used_kv_blocks);
+    response->set_kv_blocks_total(stats.available_kv_blocks + stats.used_kv_blocks);
+    response->set_kv_utilization_percent(stats.kv_utilization * 100.0f);
 
-    response->set_avg_prefill_latency_ms(stats.avg_prefill_latency_ms);
+    response->set_avg_prefill_latency_ms(stats.avg_prefill_time_ms);
     response->set_avg_decode_latency_ms(stats.avg_decode_latency_ms);
     response->set_tokens_per_second(stats.tokens_per_second);
 
@@ -221,7 +218,7 @@ grpc::Status GrpcServiceImpl::ListModels(
     const mlxrunner::v1::ListModelsRequest* request,
     mlxrunner::v1::ListModelsResponse* response) {
 
-    auto models = registry_->ListModels();
+    auto models = registry_->list_models();
 
     int offset = request->offset();
     int limit = request->limit() > 0 ? request->limit() : models.size();
@@ -239,7 +236,7 @@ grpc::Status GrpcServiceImpl::GetModel(
     const mlxrunner::v1::GetModelRequest* request,
     mlxrunner::v1::GetModelResponse* response) {
 
-    auto model_opt = registry_->GetModel(request->model_id());
+    auto model_opt = registry_->get_model_by_identifier(request->model_id());
     if (!model_opt.has_value()) {
         return grpc::Status(grpc::StatusCode::NOT_FOUND,
                           "Model not found: " + request->model_id());
@@ -254,23 +251,16 @@ grpc::Status GrpcServiceImpl::LoadModel(
     const mlxrunner::v1::LoadModelRequest* request,
     mlxrunner::v1::LoadModelResponse* response) {
 
-    auto start = std::chrono::steady_clock::now();
+    // TODO: Implement model loading
+    // ModelRegistry doesn't have a LoadModel method yet
+    // This requires integration with Engine for actual loading
 
-    bool success = registry_->LoadModel(request->model_id());
+    response->set_success(false);
+    response->set_load_time_ms(0);
+    response->set_message("Model loading not yet implemented");
 
-    auto end = std::chrono::steady_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-
-    response->set_success(success);
-    response->set_load_time_ms(duration.count());
-
-    if (success) {
-        response->set_message("Model loaded successfully");
-        return grpc::Status::OK;
-    } else {
-        response->set_message("Failed to load model");
-        return grpc::Status(grpc::StatusCode::INTERNAL, "Model loading failed");
-    }
+    return grpc::Status(grpc::StatusCode::UNIMPLEMENTED,
+                       "Model loading not yet implemented");
 }
 
 grpc::Status GrpcServiceImpl::UnloadModel(
@@ -278,12 +268,15 @@ grpc::Status GrpcServiceImpl::UnloadModel(
     const mlxrunner::v1::UnloadModelRequest* request,
     mlxrunner::v1::UnloadModelResponse* response) {
 
-    bool success = registry_->UnloadModel(request->model_id());
+    // TODO: Implement model unloading
+    // ModelRegistry doesn't have an UnloadModel method yet
+    // This requires integration with Engine for actual unloading
 
-    response->set_success(success);
-    response->set_message(success ? "Model unloaded" : "Failed to unload");
+    response->set_success(false);
+    response->set_message("Model unloading not yet implemented");
 
-    return grpc::Status::OK;
+    return grpc::Status(grpc::StatusCode::UNIMPLEMENTED,
+                       "Model unloading not yet implemented");
 }
 
 grpc::Status GrpcServiceImpl::PullModel(
@@ -625,10 +618,10 @@ grpc::Status GrpcServiceImpl::GetMetrics(
 
     if (request->format() == mlxrunner::v1::METRICS_FORMAT_PROMETHEUS) {
         response->set_format("prometheus");
-        response->set_data(metrics_->ExportPrometheus());
+        response->set_data(metrics_->export_prometheus());
     } else {
         response->set_format("json");
-        response->set_data(metrics_->ExportJSON());
+        response->set_data(metrics_->export_json());
     }
 
     return grpc::Status::OK;
@@ -654,31 +647,41 @@ std::string GrpcServiceImpl::GetTimestamp() const {
     return ss.str();
 }
 
-void GrpcServiceImpl::ConvertModelInfo(const ModelRegistry::ModelInfo& src,
+void GrpcServiceImpl::ConvertModelInfo(const registry::ModelInfo& src,
                                        mlxrunner::v1::ModelInfo* dst) {
-    dst->set_id(src.id);
+    dst->set_id(std::to_string(src.id));
     dst->set_name(src.name);
-    dst->set_family(src.family);
-    dst->set_architecture(src.architecture);
 
-    // Convert format
-    if (src.format == "gguf") {
-        dst->set_format(mlxrunner::v1::MODEL_FORMAT_GGUF);
-    } else if (src.format == "safetensors") {
-        dst->set_format(mlxrunner::v1::MODEL_FORMAT_SAFETENSORS);
-    } else if (src.format == "mlx") {
-        dst->set_format(mlxrunner::v1::MODEL_FORMAT_MLX);
+    // Convert architecture enum to string
+    // For now, just use a placeholder - proper conversion would use a lookup table
+    dst->set_family("llama");  // TODO: Convert from src.architecture enum
+    dst->set_architecture("llama");  // TODO: Convert from src.architecture enum
+
+    // Convert format enum to proto enum
+    switch (src.format) {
+        case registry::ModelFormat::GGUF:
+            dst->set_format(mlxrunner::v1::MODEL_FORMAT_GGUF);
+            break;
+        case registry::ModelFormat::SAFETENSORS:
+            dst->set_format(mlxrunner::v1::MODEL_FORMAT_SAFETENSORS);
+            break;
+        case registry::ModelFormat::MLX:
+            dst->set_format(mlxrunner::v1::MODEL_FORMAT_MLX);
+            break;
+        default:
+            dst->set_format(mlxrunner::v1::MODEL_FORMAT_UNKNOWN);
+            break;
     }
 
-    dst->set_path(src.path);
-    dst->set_dtype(src.dtype);
-    dst->set_quantization(src.quantization);
-    dst->set_parameters(src.parameters);
-    dst->set_max_context_length(src.max_context_length);
+    dst->set_path(src.file_path);
+    dst->set_dtype("fp16");  // TODO: Determine from model info
+    dst->set_quantization(src.quant_details);
+    dst->set_parameters(src.param_count);
+    dst->set_max_context_length(src.context_length);
     dst->set_num_layers(src.num_layers);
     dst->set_vocab_size(src.vocab_size);
-    dst->set_file_size_bytes(src.file_size_bytes);
-    dst->set_created_at(src.created_at);
+    dst->set_file_size_bytes(src.file_size);
+    dst->set_created_at(src.created_timestamp);
 
     for (const auto& tag : src.tags) {
         dst->add_tags(tag);

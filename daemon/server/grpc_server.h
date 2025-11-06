@@ -16,7 +16,11 @@ namespace mlxr {
 
 // Forward declarations
 class Scheduler;
-class MetricsCollector;
+
+namespace telemetry {
+class MetricsRegistry;
+}
+
 class GrpcServiceImpl;
 
 /**
@@ -48,8 +52,8 @@ public:
 
     GrpcServer(const Config& config,
                std::shared_ptr<Scheduler> scheduler,
-               std::shared_ptr<ModelRegistry> registry,
-               std::shared_ptr<MetricsCollector> metrics);
+               std::shared_ptr<registry::ModelRegistry> registry,
+               std::shared_ptr<telemetry::MetricsRegistry> metrics);
     ~GrpcServer();
 
     // Lifecycle
@@ -65,8 +69,8 @@ public:
 private:
     Config config_;
     std::shared_ptr<Scheduler> scheduler_;
-    std::shared_ptr<ModelRegistry> registry_;
-    std::shared_ptr<MetricsCollector> metrics_;
+    std::shared_ptr<registry::ModelRegistry> registry_;
+    std::shared_ptr<telemetry::MetricsRegistry> metrics_;
 
     std::unique_ptr<grpc::Server> server_;
     std::unique_ptr<GrpcServiceImpl> service_;
@@ -89,8 +93,8 @@ private:
 class GrpcServiceImpl final : public mlxrunner::v1::MLXRunnerService::Service {
 public:
     GrpcServiceImpl(std::shared_ptr<Scheduler> scheduler,
-                    std::shared_ptr<ModelRegistry> registry,
-                    std::shared_ptr<MetricsCollector> metrics);
+                    std::shared_ptr<registry::ModelRegistry> registry,
+                    std::shared_ptr<telemetry::MetricsRegistry> metrics);
 
     // Health and Status
     grpc::Status Health(grpc::ServerContext* context,
@@ -172,8 +176,8 @@ public:
 
 private:
     std::shared_ptr<Scheduler> scheduler_;
-    std::shared_ptr<ModelRegistry> registry_;
-    std::shared_ptr<MetricsCollector> metrics_;
+    std::shared_ptr<registry::ModelRegistry> registry_;
+    std::shared_ptr<telemetry::MetricsRegistry> metrics_;
 
     std::atomic<int64_t> requests_processed_{0};
     std::chrono::steady_clock::time_point start_time_;
@@ -183,7 +187,7 @@ private:
     std::string GetTimestamp() const;
 
     // Conversion helpers
-    void ConvertModelInfo(const ModelRegistry::ModelInfo& src,
+    void ConvertModelInfo(const registry::ModelInfo& src,
                          mlxrunner::v1::ModelInfo* dst);
 
     mlxr::scheduler::SamplingParams ConvertSamplingParams(const mlxrunner::v1::GenerateOptions& opts);
