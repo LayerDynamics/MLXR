@@ -5,10 +5,8 @@
 #include <string>
 #include <thread>
 
-// Forward declarations
-namespace mlxrunner { namespace v1 {
-    class MLXRunnerService;
-}} // namespace mlxrunner::v1
+// Include generated protobuf/gRPC headers
+#include "mlxrunner.grpc.pb.h"
 
 namespace mlxr {
 
