@@ -91,7 +91,7 @@ class ChatCompletions:
         if user is not None:
             request_data["user"] = user
 
-        request_data.update(kwargs)
+        request_data |= kwargs
 
         if stream:
             return self._create_stream(request_data)
@@ -193,7 +193,7 @@ class Completions:
         if best_of is not None:
             request_data["best_of"] = best_of
 
-        request_data.update(kwargs)
+        request_data |= kwargs
 
         if stream:
             return self._create_stream(request_data)
@@ -244,7 +244,7 @@ class Embeddings:
         if user is not None:
             request_data["user"] = user
 
-        request_data.update(kwargs)
+        request_data |= kwargs
 
         response = self.transport.post("/v1/embeddings", json_data=request_data)
         return EmbeddingResponse(**response)

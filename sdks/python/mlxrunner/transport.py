@@ -5,20 +5,22 @@ Handles communication via Unix Domain Socket and HTTP.
 """
 
 import json
+import logging
 import os
-import socket
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, Iterator, Optional, Union
-from urllib.parse import urljoin, urlparse
+from typing import Any, AsyncIterator, Dict, Iterator, Optional
 
 import httpx
 
 from .exceptions import (
     MLXRConnectionError,
+    MLXRPermissionError,
     MLXRStreamError,
     MLXRTimeoutError,
     raise_for_status,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class UDSTransport(httpx.HTTPTransport):
@@ -27,6 +29,29 @@ class UDSTransport(httpx.HTTPTransport):
     def __init__(self, socket_path: str, **kwargs: Any) -> None:
         self.socket_path = socket_path
         super().__init__(uds=socket_path, **kwargs)
+
+
+def _build_headers(api_key: Optional[str]) -> Dict[str, str]:
+    """Build common HTTP headers."""
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
+
+
+def _check_socket_path(socket_path: str) -> None:
+    """Check if socket exists and is accessible."""
+    if not os.path.exists(socket_path):
+        raise MLXRConnectionError(
+            f"Socket not found at {socket_path}. Is the daemon running?"
+        )
+
+    # Check read/write permissions
+    if not os.access(socket_path, os.R_OK | os.W_OK):
+        raise MLXRPermissionError(
+            f"Permission denied for socket at {socket_path}. "
+            f"Check file permissions and ownership."
+        )
 
 
 class BaseTransport:
@@ -50,12 +75,12 @@ class BaseTransport:
         self.api_key = api_key
         self.timeout = timeout
 
+        # Build headers once
+        headers = _build_headers(api_key)
+
         # Set up client based on connection type
         if base_url:
             # HTTP connection
-            headers = {}
-            if api_key:
-                headers["Authorization"] = f"Bearer {api_key}"
             self.client = httpx.Client(
                 base_url=base_url,
                 headers=headers,
@@ -63,13 +88,7 @@ class BaseTransport:
             )
         else:
             # Unix Domain Socket connection
-            if not os.path.exists(self.socket_path):
-                raise MLXRConnectionError(
-                    f"Socket not found at {self.socket_path}. Is the daemon running?"
-                )
-            headers = {}
-            if api_key:
-                headers["Authorization"] = f"Bearer {api_key}"
+            _check_socket_path(self.socket_path)
             self.client = httpx.Client(
                 transport=UDSTransport(self.socket_path),
                 base_url="http://localhost",
@@ -102,21 +121,19 @@ class BaseTransport:
                     error_message = error_data.get("error", {}).get("message", response.text)
                 except Exception:
                     error_message = response.text
+                    error_data = None
 
-                raise_for_status(response.status_code, error_message, error_data if 'error_data' in locals() else None)
-
-            # Parse response
-            if response.status_code == 204:
-                return {}
-
-            return response.json()
+                raise_for_status(response.status_code, error_message, error_data)
+            else:
+                # Parse response
+                return {} if response.status_code == 204 else response.json()
 
         except httpx.TimeoutException as e:
-            raise MLXRTimeoutError(f"Request timed out: {e}")
+            raise MLXRTimeoutError(f"Request timed out: {e}") from e
         except httpx.ConnectError as e:
-            raise MLXRConnectionError(f"Failed to connect: {e}")
+            raise MLXRConnectionError(f"Failed to connect: {e}") from e
         except httpx.HTTPError as e:
-            raise MLXRConnectionError(f"HTTP error: {e}")
+            raise MLXRConnectionError(f"HTTP error: {e}") from e
 
     def _stream(
         self,
@@ -156,22 +173,22 @@ class BaseTransport:
                             break
                         try:
                             yield json.loads(data)
-                        except json.JSONDecodeError:
-                            # Handle non-JSON lines (like event: message)
+                        except json.JSONDecodeError as e:
+                            logger.warning(f"Malformed SSE data line encountered: {data!r}")
                             continue
                     # Handle plain JSON lines (Ollama format)
                     elif line.startswith("{"):
                         try:
                             yield json.loads(line)
                         except json.JSONDecodeError as e:
-                            raise MLXRStreamError(f"Failed to parse JSON: {e}")
+                            raise MLXRStreamError(f"Failed to parse JSON: {e}") from e
 
         except httpx.TimeoutException as e:
-            raise MLXRTimeoutError(f"Stream timed out: {e}")
+            raise MLXRTimeoutError(f"Stream timed out: {e}") from e
         except httpx.ConnectError as e:
-            raise MLXRConnectionError(f"Failed to connect: {e}")
+            raise MLXRConnectionError(f"Failed to connect: {e}") from e
         except httpx.HTTPError as e:
-            raise MLXRConnectionError(f"HTTP error: {e}")
+            raise MLXRConnectionError(f"HTTP error: {e}") from e
 
     def get(self, path: str, **kwargs: Any) -> Dict[str, Any]:
         """GET request."""
@@ -225,12 +242,12 @@ class AsyncTransport:
         self.api_key = api_key
         self.timeout = timeout
 
+        # Build headers once
+        headers = _build_headers(api_key)
+
         # Set up async client based on connection type
         if base_url:
             # HTTP connection
-            headers = {}
-            if api_key:
-                headers["Authorization"] = f"Bearer {api_key}"
             self.client = httpx.AsyncClient(
                 base_url=base_url,
                 headers=headers,
@@ -238,13 +255,7 @@ class AsyncTransport:
             )
         else:
             # Unix Domain Socket connection
-            if not os.path.exists(self.socket_path):
-                raise MLXRConnectionError(
-                    f"Socket not found at {self.socket_path}. Is the daemon running?"
-                )
-            headers = {}
-            if api_key:
-                headers["Authorization"] = f"Bearer {api_key}"
+            _check_socket_path(self.socket_path)
 
             # Use UDS transport for async client
             transport = httpx.AsyncHTTPTransport(uds=self.socket_path)
@@ -280,20 +291,19 @@ class AsyncTransport:
                     error_message = error_data.get("error", {}).get("message", response.text)
                 except Exception:
                     error_message = response.text
-                raise_for_status(response.status_code, error_message)
+                    error_data = None
 
-            # Parse response
-            if response.status_code == 204:
-                return {}
-
-            return response.json()
+                raise_for_status(response.status_code, error_message, error_data)
+            else:
+                # Parse response
+                return {} if response.status_code == 204 else response.json()
 
         except httpx.TimeoutException as e:
-            raise MLXRTimeoutError(f"Request timed out: {e}")
+            raise MLXRTimeoutError(f"Request timed out: {e}") from e
         except httpx.ConnectError as e:
-            raise MLXRConnectionError(f"Failed to connect: {e}")
+            raise MLXRConnectionError(f"Failed to connect: {e}") from e
         except httpx.HTTPError as e:
-            raise MLXRConnectionError(f"HTTP error: {e}")
+            raise MLXRConnectionError(f"HTTP error: {e}") from e
 
     async def _stream(
         self,
@@ -334,20 +344,21 @@ class AsyncTransport:
                         try:
                             yield json.loads(data)
                         except json.JSONDecodeError:
+                            logger.warning(f"Malformed SSE data line encountered: {data!r}")
                             continue
                     # Handle plain JSON lines (Ollama format)
                     elif line.startswith("{"):
                         try:
                             yield json.loads(line)
                         except json.JSONDecodeError as e:
-                            raise MLXRStreamError(f"Failed to parse JSON: {e}")
+                            raise MLXRStreamError(f"Failed to parse JSON: {e}") from e
 
         except httpx.TimeoutException as e:
-            raise MLXRTimeoutError(f"Stream timed out: {e}")
+            raise MLXRTimeoutError(f"Stream timed out: {e}") from e
         except httpx.ConnectError as e:
-            raise MLXRConnectionError(f"Failed to connect: {e}")
+            raise MLXRConnectionError(f"Failed to connect: {e}") from e
         except httpx.HTTPError as e:
-            raise MLXRConnectionError(f"HTTP error: {e}")
+            raise MLXRConnectionError(f"HTTP error: {e}") from e
 
     async def get(self, path: str, **kwargs: Any) -> Dict[str, Any]:
         """Async GET request."""

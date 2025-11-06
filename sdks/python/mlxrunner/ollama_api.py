@@ -96,7 +96,7 @@ class OllamaAPI:
         if keep_alive is not None:
             request_data["keep_alive"] = keep_alive
 
-        request_data.update(kwargs)
+        request_data |= kwargs
 
         if stream:
             return self._generate_stream(request_data)
@@ -153,7 +153,7 @@ class OllamaAPI:
         if keep_alive is not None:
             request_data["keep_alive"] = keep_alive
 
-        request_data.update(kwargs)
+        request_data |= kwargs
 
         if stream:
             return self._chat_stream(request_data)
@@ -201,7 +201,7 @@ class OllamaAPI:
         if keep_alive is not None:
             request_data["keep_alive"] = keep_alive
 
-        request_data.update(kwargs)
+        request_data |= kwargs
 
         response = self.transport.post("/api/embeddings", json_data=request_data)
         return OllamaEmbeddingResponse(**response)
@@ -230,7 +230,7 @@ class OllamaAPI:
             "insecure": insecure,
             "stream": stream,
         }
-        request_data.update(kwargs)
+        request_data |= kwargs
 
         if stream:
             return self._pull_stream(request_data)
@@ -277,7 +277,7 @@ class OllamaAPI:
         if path is not None:
             request_data["path"] = path
 
-        request_data.update(kwargs)
+        request_data |= kwargs
 
         if stream:
             return self._create_stream(request_data)
@@ -309,7 +309,7 @@ class OllamaAPI:
             Empty dict on success
         """
         request_data = {"source": source, "destination": destination}
-        request_data.update(kwargs)
+        request_data |= kwargs
         return self.transport.post("/api/copy", json_data=request_data)
 
     def delete(self, name: str, **kwargs: Any) -> Dict[str, Any]:
@@ -324,7 +324,7 @@ class OllamaAPI:
             Empty dict on success
         """
         request_data = {"name": name}
-        request_data.update(kwargs)
+        request_data |= kwargs
         return self.transport.delete("/api/delete", json_data=request_data)
 
     def show(self, name: str, **kwargs: Any) -> OllamaShowResponse:
@@ -339,7 +339,7 @@ class OllamaAPI:
             OllamaShowResponse
         """
         request_data = {"name": name}
-        request_data.update(kwargs)
+        request_data |= kwargs
         response = self.transport.post("/api/show", json_data=request_data)
         return OllamaShowResponse(**response)
 

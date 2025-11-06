@@ -68,7 +68,7 @@ class AsyncChatCompletions:
         if user is not None:
             request_data["user"] = user
 
-        request_data.update(kwargs)
+        request_data |= kwargs
 
         if stream:
             return self._create_stream(request_data)
@@ -151,7 +151,7 @@ class AsyncCompletions:
         if best_of is not None:
             request_data["best_of"] = best_of
 
-        request_data.update(kwargs)
+        request_data |= kwargs
 
         if stream:
             return self._create_stream(request_data)
@@ -191,7 +191,7 @@ class AsyncEmbeddings:
         if user is not None:
             request_data["user"] = user
 
-        request_data.update(kwargs)
+        request_data |= kwargs
 
         response = await self.transport.post("/v1/embeddings", json_data=request_data)
         return EmbeddingResponse(**response)
@@ -258,7 +258,7 @@ class AsyncOllamaAPI:
         if keep_alive is not None:
             request_data["keep_alive"] = keep_alive
 
-        request_data.update(kwargs)
+        request_data |= kwargs
 
         if stream:
             return self._generate_stream(request_data)
@@ -301,7 +301,7 @@ class AsyncOllamaAPI:
         if keep_alive is not None:
             request_data["keep_alive"] = keep_alive
 
-        request_data.update(kwargs)
+        request_data |= kwargs
 
         if stream:
             return self._chat_stream(request_data)
@@ -339,7 +339,7 @@ class AsyncOllamaAPI:
         if keep_alive is not None:
             request_data["keep_alive"] = keep_alive
 
-        request_data.update(kwargs)
+        request_data |= kwargs
 
         response = await self.transport.post("/api/embeddings", json_data=request_data)
         return OllamaEmbeddingResponse(**response)
@@ -357,7 +357,7 @@ class AsyncOllamaAPI:
             "insecure": insecure,
             "stream": stream,
         }
-        request_data.update(kwargs)
+        request_data |= kwargs
 
         if stream:
             return self._pull_stream(request_data)
@@ -394,7 +394,7 @@ class AsyncOllamaAPI:
         if path is not None:
             request_data["path"] = path
 
-        request_data.update(kwargs)
+        request_data |= kwargs
 
         if stream:
             return self._create_stream(request_data)
@@ -416,19 +416,19 @@ class AsyncOllamaAPI:
     async def copy(self, source: str, destination: str, **kwargs: Any) -> Dict[str, Any]:
         """Async copy a model."""
         request_data = {"source": source, "destination": destination}
-        request_data.update(kwargs)
+        request_data |= kwargs
         return await self.transport.post("/api/copy", json_data=request_data)
 
     async def delete(self, name: str, **kwargs: Any) -> Dict[str, Any]:
         """Async delete a model."""
         request_data = {"name": name}
-        request_data.update(kwargs)
+        request_data |= kwargs
         return await self.transport.delete("/api/delete", json_data=request_data)
 
     async def show(self, name: str, **kwargs: Any) -> OllamaShowResponse:
         """Async show model information."""
         request_data = {"name": name}
-        request_data.update(kwargs)
+        request_data |= kwargs
         response = await self.transport.post("/api/show", json_data=request_data)
         return OllamaShowResponse(**response)
 
