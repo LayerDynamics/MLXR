@@ -62,19 +62,8 @@ jobs:
 
           echo "✓ gRPC and Protobuf ready with matching versions"
 
-      - name: Generate protobuf files
-        run: |
-          cd daemon/server/proto
-
-          # Generate C++ protobuf files
-          protoc --cpp_out=. \
-                 --grpc_out=. \
-                 --plugin=protoc-gen-grpc=$(which grpc_cpp_plugin) \
-                 mlxrunner.proto
-
-          # Verify generated files
-          ls -la mlxrunner.pb.h mlxrunner.pb.cc
-          ls -la mlxrunner.grpc.pb.h mlxrunner.grpc.pb.cc
+      # Note: Protobuf code generation is handled by CMake via add_custom_command
+      # No need to manually generate - CMake will do it during build
 
       - name: Build gRPC server
         uses: ./.github/actions/build-cpp-core
@@ -85,8 +74,8 @@ jobs:
 
       - name: Verify gRPC artifacts
         run: |
-          echo "=== Generated protobuf files ==="
-          find daemon/server/proto -name "*.pb.*" -type f
+          echo "=== Generated protobuf files (by CMake) ==="
+          find build/cmake/daemon/generated -name "*.pb.*" -type f 2>/dev/null || echo "Generated files will be in build/cmake/daemon/generated/"
 
           echo "=== Build artifacts ==="
           find build/cmake -name "*grpc*" -o -name "*proto*" | head -20
@@ -96,8 +85,8 @@ jobs:
         with:
           name: grpc-artifacts
           path: |
-            daemon/server/proto/*.pb.h
-            daemon/server/proto/*.pb.cc
+            build/cmake/daemon/generated/*.pb.h
+            build/cmake/daemon/generated/*.pb.cc
             build/cmake/lib/*.a
             build/cmake/bin/test_daemon
             build/cmake/bin/grpc_server_test
@@ -129,11 +118,11 @@ jobs:
 
       - name: Organize artifacts
         run: |
-          mkdir -p build/cmake/bin build/cmake/lib daemon/server/proto
+          mkdir -p build/cmake/bin build/cmake/lib build/cmake/daemon/generated
           find build -name "grpc_server_test" -exec mv {} build/cmake/bin/ \; || true
           find build -name "test_daemon" -exec mv {} build/cmake/bin/ \; || true
           find build -name "*.a" -exec mv {} build/cmake/lib/ \; || true
-          find build -name "*.pb.*" -exec cp {} daemon/server/proto/ \; || true
+          find build -name "*.pb.*" -exec cp {} build/cmake/daemon/generated/ \; || true
           chmod +x build/cmake/bin/* || true
 
       - name: Run gRPC unit tests
@@ -370,16 +359,8 @@ jobs:
         with:
           version: '23.x'
 
-      - name: Download gRPC artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: grpc-artifacts
-          path: build
-
-      - name: Copy protobuf files
-        run: |
-          mkdir -p daemon/server/proto
-          find build -name "*.proto" -exec cp {} daemon/server/proto/ \; || true
+      # Note: We generate clients directly from the source .proto file
+      # No need to download artifacts since the .proto file is in the repo
 
       - name: Generate Python gRPC client
         if: matrix.client == 'python'
