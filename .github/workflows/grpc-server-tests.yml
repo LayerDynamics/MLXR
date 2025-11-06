@@ -40,25 +40,22 @@ jobs:
           install-build-tools: 'true'
           use-ccache: 'false'
 
-      # Using setup-protoc action for faster installation
-      - name: Setup Protobuf Compiler
-        uses: arduino/setup-protoc@v3
-        with:
-          version: '25.x'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install gRPC
+      - name: Install gRPC and Protobuf
         run: |
-          # Install gRPC via Homebrew (standard for macOS)
-          brew install grpc
+          # Install gRPC and Protobuf via Homebrew
+          # This ensures matching versions (grpc depends on protobuf)
+          brew install grpc protobuf
 
           # Verify installations
-          echo "Checking gRPC installation..."
+          echo "Checking gRPC and Protobuf installation..."
           which grpc_cpp_plugin
           which protoc
           protoc --version
 
-          echo "✓ gRPC and Protobuf ready"
+          # Show installed versions
+          brew list --versions grpc protobuf
+
+          echo "✓ gRPC and Protobuf ready with matching versions"
 
       - name: Generate protobuf files
         run: |
