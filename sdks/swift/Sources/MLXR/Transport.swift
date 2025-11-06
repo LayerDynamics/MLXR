@@ -250,10 +250,14 @@ final class UnixSocketTransport: Transport {
             throw MLXRError.socketNotAvailable(socketPath)
         }
 
-        _ = withUnsafeMutablePointer(to: &addr.sun_path.0) { ptr in
-            pathCString.withMemoryRebound(to: Int8.self, capacity: pathLength) { source in
-                ptr.assign(from: source, count: pathLength)
-            }
+        // Use memcpy for safe and portable assignment, ensure null-termination
+        let sunPathSize = MemoryLayout.size(ofValue: addr.sun_path)
+        withUnsafeMutableBytes(of: &addr.sun_path) { sunPathPtr in
+            // Copy up to sunPathSize - 1 to leave space for null terminator
+            let copyLength = min(pathLength, sunPathSize - 1)
+            memcpy(sunPathPtr.baseAddress, pathCString, copyLength)
+            // Ensure null-termination
+            sunPathPtr[copyLength] = 0
         }
 
         let connectResult = withUnsafePointer(to: &addr) { addrPtr in
