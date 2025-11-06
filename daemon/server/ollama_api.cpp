@@ -85,11 +85,9 @@ std::string OllamaAPIHandler::handle_generate(const std::string& json_request,
   response.created_at = current_timestamp_iso8601();
   response.done = false;
 
-  // If no engine, return empty response (like streaming does)
+  // If no engine, return explicit error
   if (!engine_) {
-    response.response = "";
-    response.done = true;
-    return serialize_generate_response(response);
+    return create_error_response("Inference engine not available");
   }
 
   try{
@@ -165,11 +163,9 @@ std::string OllamaAPIHandler::handle_chat(const std::string& json_request,
   response.created_at = current_timestamp_iso8601();
   response.message.role = "assistant";
 
-  // If no engine, return empty response (like streaming does)
+  // If no engine, return explicit error
   if (!engine_) {
-    response.message.content = "";
-    response.done = true;
-    return serialize_chat_response(response);
+    return create_error_response("Inference engine not available");
   }
 
   try {
@@ -346,26 +342,7 @@ std::string OllamaAPIHandler::handle_tags() {
     }
   }
 
-  // If no models found, return placeholder model for testing
-  // (In production, this would query the real registry)
-  if (response.models.empty()) {
-    OllamaModelInfo placeholder;
-    placeholder.name = "llama3:latest";
-    placeholder.modified_at = current_timestamp_iso8601();
-    placeholder.size = 3826793677;
-    placeholder.digest = "sha256:mock-digest-123";
-
-    OllamaModelInfo::Details details;
-    details.format = "gguf";
-    details.family = "llama";
-    details.families = {"llama"};
-    details.parameter_size = "7B";
-    details.quantization_level = "Q4_K_M";
-    placeholder.details = details;
-
-    response.models.push_back(placeholder);
-  }
-
+  // Return the response (empty list if no models found)
   return serialize_tags_response(response);
 }
 

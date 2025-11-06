@@ -166,12 +166,8 @@ install-deps:
 		echo "❌ Homebrew not found. Install from: https://brew.sh"; \
 		exit 1; \
 	fi
-	@echo "Installing C++ dependencies..."
-	brew install sentencepiece nlohmann-json cpp-httplib googletest
-	@echo "Installing build tools (if not present)..."
-	brew install cmake ninja
-	@echo "Installing MLX (if not present)..."
-	brew install mlx || true
+	@echo "Installing dependencies using centralized script..."
+	@./scripts/install_homebrew_deps.sh --build-tools
 	@echo ""
 	@echo "✓ System dependencies installed!"
 	@echo ""
