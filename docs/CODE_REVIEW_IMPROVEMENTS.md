@@ -96,7 +96,7 @@ return serialize_tags_response(response);
 - Configurable options via flags:
   - `--build-tools` - Install cmake and ninja
   - `--with-node` - Include Node.js
-  - `--with-apache-bench` - Include Apache Bench
+  - `--with-apache-bench` - Include httpd (provides ApacheBench 'ab' tool for stress testing)
   - `--quiet` - Suppress verbose output
 - Color-coded output for better visibility
 - Error handling with exit on failure

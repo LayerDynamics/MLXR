@@ -2,7 +2,8 @@
 # Install Homebrew dependencies for MLXR
 # This script is used by both the Makefile and CI/CD workflows
 
-set -e  # Exit on error
+# Strict mode: exit on error, undefined variables, and pipe failures
+set -euo pipefail
 
 # Color output
 RED='\033[0;31m'
@@ -61,7 +62,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --with-apache-bench)
-            EXTRA_DEPS+=("apache-bench")
+            EXTRA_DEPS+=("httpd")
             shift
             ;;
         --quiet)
@@ -71,6 +72,12 @@ while [[ $# -gt 0 ]]; do
         *)
             echo "Unknown option: $1"
             echo "Usage: $0 [--build-tools] [--with-node] [--with-apache-bench] [--quiet]"
+            echo ""
+            echo "Options:"
+            echo "  --build-tools         Install CMake and Ninja"
+            echo "  --with-node          Install Node.js"
+            echo "  --with-apache-bench  Install httpd (includes ApacheBench 'ab' tool)"
+            echo "  --quiet              Suppress non-essential output"
             exit 1
             ;;
     esac

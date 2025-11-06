@@ -14,9 +14,9 @@ protocol HostBridge {
     /// Make an HTTP request to the daemon via Unix Domain Socket
     /// - Parameters:
     ///   - path: Request path (e.g., '/v1/models')
-    ///   - init: Request options (method, headers, body)
+    ///   - options: Request options (method, headers, body)
     /// - Returns: Response with status, headers, and body
-    func request(path: String, init: [String: Any]?) async throws -> BridgeResponse
+    func request(path: String, init options: [String: Any]?) async throws -> BridgeResponse
 
     /// Open file/folder picker dialog
     /// - Parameter type: 'models' or 'cache'

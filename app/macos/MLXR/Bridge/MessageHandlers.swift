@@ -129,11 +129,11 @@ class MessageHandlers: NSObject, WKScriptMessageHandler, HostBridge {
 
     // MARK: - HostBridge Implementation
 
-    func request(path: String, init: [String: Any]?) async throws -> BridgeResponse {
+    func request(path: String, init options: [String: Any]?) async throws -> BridgeResponse {
         // Parse request options
-        let method = init?["method"] as? String ?? "GET"
-        let headers = init?["headers"] as? [String: String] ?? [:]
-        let body = init?["body"] as? String
+        let method = options?["method"] as? String ?? "GET"
+        let headers = options?["headers"] as? [String: String] ?? [:]
+        let body = options?["body"] as? String
 
         // Make request to daemon via Unix Socket
         do {
