@@ -1,6 +1,7 @@
 #include "grpc_server.h"
 #include "mlxrunner.grpc.pb.h"
 #include "scheduler/scheduler.h"
+#include "scheduler/request.h"
 #include "registry/model_registry.h"
 #include "telemetry/metrics.h"
 
@@ -313,6 +314,8 @@ grpc::Status GrpcServiceImpl::CreateChatCompletion(
     const mlxrunner::v1::ChatCompletionRequest* request,
     grpc::ServerWriter<mlxrunner::v1::ChatCompletionChunk>* writer) {
 
+    using namespace mlxr::scheduler;
+
     requests_processed_.fetch_add(1);
 
     // Build prompt from messages
@@ -322,45 +325,58 @@ grpc::Status GrpcServiceImpl::CreateChatCompletion(
     }
     prompt += "assistant: ";
 
-    // Create scheduler request
-    SchedulerRequest sched_req;
-    sched_req.request_id = GenerateRequestId();
-    sched_req.model = request->model();
-    sched_req.prompt = prompt;
-    sched_req.max_tokens = request->max_tokens() > 0 ? request->max_tokens() : 512;
+    // TODO: Get tokenizer from model registry and tokenize prompt
+    // For now, use placeholder tokens (this needs model-specific tokenizer)
+    std::vector<int> prompt_tokens;  // Would be: tokenizer->encode(prompt);
 
-    // Sampling params
-    sched_req.sampling_params.temperature = request->temperature();
-    sched_req.sampling_params.top_p = request->top_p();
+    // Create sampling parameters
+    SamplingParams sampling_params;
+    sampling_params.temperature = request->temperature() > 0 ? request->temperature() : 0.7f;
+    sampling_params.top_p = request->top_p() > 0 ? request->top_p() : 0.9f;
+    sampling_params.max_tokens = request->max_tokens() > 0 ? request->max_tokens() : 512;
+
+    // Create scheduler request
+    std::string request_id = GenerateRequestId();
+    auto sched_req = std::make_shared<Request>(
+        request_id,
+        prompt,
+        prompt_tokens,
+        sampling_params
+    );
 
     // Token callback for streaming
-    std::string accumulated_text;
-    sched_req.token_callback = [&](const std::string& token, bool is_final) {
+    // Note: The callback signature is (int token_id, bool finished)
+    // We need to decode token_id to string, which requires a tokenizer
+    sched_req->token_callback = [writer, request_id, model = request->model()](int token_id, bool finished) {
         mlxrunner::v1::ChatCompletionChunk chunk;
-        chunk.set_id(sched_req.request_id);
+        chunk.set_id(request_id);
         chunk.set_object("chat.completion.chunk");
         chunk.set_created(std::chrono::system_clock::now().time_since_epoch().count());
-        chunk.set_model(request->model());
+        chunk.set_model(model);
 
         auto* choice = chunk.add_choices();
         choice->set_index(0);
 
         auto* delta = choice->mutable_delta();
-        delta->set_content(token);
+        // TODO: Decode token_id to text using tokenizer
+        delta->set_content(std::to_string(token_id));  // Placeholder
 
-        if (is_final) {
+        if (finished) {
             choice->set_finish_reason("stop");
         }
 
         writer->Write(chunk);
-        accumulated_text += token;
     };
 
     // Submit to scheduler
-    scheduler_->SubmitRequest(std::move(sched_req));
+    if (!scheduler_->submit_request(sched_req)) {
+        return grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED,
+                          "Scheduler queue is full");
+    }
 
-    // Wait for completion (in a real implementation, this would be async)
-    // For now, we just return after submission
+    // TODO: Wait for completion asynchronously
+    // Current implementation returns immediately
+    // Production version should wait for request to complete or stream tokens
     return grpc::Status::OK;
 }
 
@@ -369,39 +385,53 @@ grpc::Status GrpcServiceImpl::CreateCompletion(
     const mlxrunner::v1::CompletionRequest* request,
     grpc::ServerWriter<mlxrunner::v1::CompletionChunk>* writer) {
 
+    using namespace mlxr::scheduler;
+
     requests_processed_.fetch_add(1);
 
+    // TODO: Get tokenizer from model registry and tokenize prompt
+    std::vector<int> prompt_tokens;  // Would be: tokenizer->encode(request->prompt());
+
+    // Create sampling parameters
+    SamplingParams sampling_params;
+    sampling_params.temperature = request->temperature() > 0 ? request->temperature() : 0.7f;
+    sampling_params.top_p = request->top_p() > 0 ? request->top_p() : 0.9f;
+    sampling_params.max_tokens = request->max_tokens() > 0 ? request->max_tokens() : 512;
+
     // Create scheduler request
-    SchedulerRequest sched_req;
-    sched_req.request_id = GenerateRequestId();
-    sched_req.model = request->model();
-    sched_req.prompt = request->prompt();
-    sched_req.max_tokens = request->max_tokens() > 0 ? request->max_tokens() : 512;
+    std::string request_id = GenerateRequestId();
+    auto sched_req = std::make_shared<Request>(
+        request_id,
+        request->prompt(),
+        prompt_tokens,
+        sampling_params
+    );
 
-    // Sampling params
-    sched_req.sampling_params.temperature = request->temperature();
-    sched_req.sampling_params.top_p = request->top_p();
-
-    // Token callback
-    sched_req.token_callback = [&](const std::string& token, bool is_final) {
+    // Token callback for streaming
+    sched_req->token_callback = [writer, request_id, model = request->model()](int token_id, bool finished) {
         mlxrunner::v1::CompletionChunk chunk;
-        chunk.set_id(sched_req.request_id);
+        chunk.set_id(request_id);
         chunk.set_object("text_completion");
         chunk.set_created(std::chrono::system_clock::now().time_since_epoch().count());
-        chunk.set_model(request->model());
+        chunk.set_model(model);
 
         auto* choice = chunk.add_choices();
-        choice->set_text(token);
+        // TODO: Decode token_id to text using tokenizer
+        choice->set_text(std::to_string(token_id));  // Placeholder
         choice->set_index(0);
 
-        if (is_final) {
+        if (finished) {
             choice->set_finish_reason("stop");
         }
 
         writer->Write(chunk);
     };
 
-    scheduler_->SubmitRequest(std::move(sched_req));
+    // Submit to scheduler
+    if (!scheduler_->submit_request(sched_req)) {
+        return grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED,
+                          "Scheduler queue is full");
+    }
 
     return grpc::Status::OK;
 }
@@ -425,28 +455,44 @@ grpc::Status GrpcServiceImpl::Generate(
     const mlxrunner::v1::GenerateRequest* request,
     grpc::ServerWriter<mlxrunner::v1::GenerateResponse>* writer) {
 
+    using namespace mlxr::scheduler;
+
     requests_processed_.fetch_add(1);
 
-    // Create scheduler request
-    SchedulerRequest sched_req;
-    sched_req.request_id = GenerateRequestId();
-    sched_req.model = request->model();
-    sched_req.prompt = request->prompt();
+    // TODO: Get tokenizer from model registry and tokenize prompt
+    std::vector<int> prompt_tokens;  // Would be: tokenizer->encode(request->prompt());
 
+    // Get sampling parameters
+    SamplingParams sampling_params;
     if (request->has_options()) {
-        sched_req.sampling_params = ConvertSamplingParams(request->options());
+        sampling_params = ConvertSamplingParams(request->options());
+    } else {
+        // Use defaults
+        sampling_params.temperature = 0.7f;
+        sampling_params.top_p = 0.9f;
+        sampling_params.max_tokens = 512;
     }
 
-    // Token callback
-    auto start_time = std::chrono::steady_clock::now();
-    sched_req.token_callback = [&](const std::string& token, bool is_final) {
-        mlxrunner::v1::GenerateResponse resp;
-        resp.set_model(request->model());
-        resp.set_created_at(GetTimestamp());
-        resp.set_response(token);
-        resp.set_done(is_final);
+    // Create scheduler request
+    std::string request_id = GenerateRequestId();
+    auto sched_req = std::make_shared<Request>(
+        request_id,
+        request->prompt(),
+        prompt_tokens,
+        sampling_params
+    );
 
-        if (is_final) {
+    // Token callback for streaming
+    auto start_time = std::chrono::steady_clock::now();
+    sched_req->token_callback = [writer, model = request->model(), start_time](int token_id, bool finished) {
+        mlxrunner::v1::GenerateResponse resp;
+        resp.set_model(model);
+        resp.set_created_at(GetTimestamp());
+        // TODO: Decode token_id to text using tokenizer
+        resp.set_response(std::to_string(token_id));  // Placeholder
+        resp.set_done(finished);
+
+        if (finished) {
             auto end_time = std::chrono::steady_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
                 end_time - start_time);
@@ -456,7 +502,11 @@ grpc::Status GrpcServiceImpl::Generate(
         writer->Write(resp);
     };
 
-    scheduler_->SubmitRequest(std::move(sched_req));
+    // Submit to scheduler
+    if (!scheduler_->submit_request(sched_req)) {
+        return grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED,
+                          "Scheduler queue is full");
+    }
 
     return grpc::Status::OK;
 }
@@ -465,6 +515,8 @@ grpc::Status GrpcServiceImpl::Chat(
     grpc::ServerContext* context,
     const mlxrunner::v1::ChatRequest* request,
     grpc::ServerWriter<mlxrunner::v1::ChatResponse>* writer) {
+
+    using namespace mlxr::scheduler;
 
     requests_processed_.fetch_add(1);
 
@@ -475,32 +527,46 @@ grpc::Status GrpcServiceImpl::Chat(
     }
     prompt += "assistant: ";
 
-    // Create scheduler request
-    SchedulerRequest sched_req;
-    sched_req.request_id = GenerateRequestId();
-    sched_req.model = request->model();
-    sched_req.prompt = prompt;
+    // TODO: Get tokenizer from model registry and tokenize prompt
+    std::vector<int> prompt_tokens;  // Would be: tokenizer->encode(prompt);
 
+    // Get sampling parameters
+    SamplingParams sampling_params;
     if (request->has_options()) {
-        sched_req.sampling_params = ConvertSamplingParams(request->options());
+        sampling_params = ConvertSamplingParams(request->options());
+    } else {
+        // Use defaults
+        sampling_params.temperature = 0.7f;
+        sampling_params.top_p = 0.9f;
+        sampling_params.max_tokens = 512;
     }
 
-    // Token callback
+    // Create scheduler request
+    std::string request_id = GenerateRequestId();
+    auto sched_req = std::make_shared<Request>(
+        request_id,
+        prompt,
+        prompt_tokens,
+        sampling_params
+    );
+
+    // Token callback for streaming
     auto start_time = std::chrono::steady_clock::now();
-    std::string accumulated;
-    sched_req.token_callback = [&](const std::string& token, bool is_final) {
-        accumulated += token;
+    auto accumulated = std::make_shared<std::string>();  // Shared for lambda capture
+    sched_req->token_callback = [writer, model = request->model(), start_time, accumulated](int token_id, bool finished) {
+        // TODO: Decode token_id to text using tokenizer
+        *accumulated += std::to_string(token_id);  // Placeholder
 
         mlxrunner::v1::ChatResponse resp;
-        resp.set_model(request->model());
+        resp.set_model(model);
         resp.set_created_at(GetTimestamp());
-        resp.set_done(is_final);
+        resp.set_done(finished);
 
         auto* msg = resp.mutable_message();
         msg->set_role("assistant");
-        msg->set_content(accumulated);
+        msg->set_content(*accumulated);
 
-        if (is_final) {
+        if (finished) {
             auto end_time = std::chrono::steady_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
                 end_time - start_time);
@@ -510,7 +576,11 @@ grpc::Status GrpcServiceImpl::Chat(
         writer->Write(resp);
     };
 
-    scheduler_->SubmitRequest(std::move(sched_req));
+    // Submit to scheduler
+    if (!scheduler_->submit_request(sched_req)) {
+        return grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED,
+                          "Scheduler queue is full");
+    }
 
     return grpc::Status::OK;
 }
@@ -615,15 +685,15 @@ void GrpcServiceImpl::ConvertModelInfo(const ModelRegistry::ModelInfo& src,
     }
 }
 
-SamplingParams GrpcServiceImpl::ConvertSamplingParams(
+mlxr::scheduler::SamplingParams GrpcServiceImpl::ConvertSamplingParams(
     const mlxrunner::v1::GenerateOptions& opts) {
 
-    SamplingParams params;
-    params.temperature = opts.temperature();
-    params.top_p = opts.top_p();
-    params.top_k = opts.top_k();
-    params.repetition_penalty = opts.repeat_penalty();
-    params.max_tokens = opts.num_predict();
+    mlxr::scheduler::SamplingParams params;
+    params.temperature = opts.temperature() > 0 ? opts.temperature() : 0.7f;
+    params.top_p = opts.top_p() > 0 ? opts.top_p() : 0.9f;
+    params.top_k = opts.top_k() > 0 ? opts.top_k() : 40;
+    params.repetition_penalty = opts.repeat_penalty() > 0 ? opts.repeat_penalty() : 1.1f;
+    params.max_tokens = opts.num_predict() > 0 ? opts.num_predict() : 512;
 
     return params;
 }

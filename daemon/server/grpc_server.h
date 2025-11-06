@@ -184,7 +184,7 @@ private:
     void ConvertModelInfo(const ModelRegistry::ModelInfo& src,
                          mlxrunner::v1::ModelInfo* dst);
 
-    SamplingParams ConvertSamplingParams(const mlxrunner::v1::GenerateOptions& opts);
+    mlxr::scheduler::SamplingParams ConvertSamplingParams(const mlxrunner::v1::GenerateOptions& opts);
 };
 
 } // namespace mlxr
