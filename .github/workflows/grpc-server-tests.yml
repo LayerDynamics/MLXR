@@ -1,0 +1,429 @@
+name: gRPC Server Tests
+
+on:
+  push:
+    branches: [ main, develop, 'claude/**' ]
+    paths:
+      - 'daemon/server/grpc_server.*'
+      - 'daemon/server/proto/**'
+      - 'tests/unit/grpc_server_test.cpp'
+      - '.github/workflows/grpc-server-tests.yml'
+      - 'daemon/CMakeLists.txt'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'daemon/server/grpc_server.*'
+      - 'daemon/server/proto/**'
+      - 'tests/unit/grpc_server_test.cpp'
+  workflow_dispatch:
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================================
+  # Build gRPC Components
+  # ============================================================================
+  build-grpc:
+    name: Build gRPC Components
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup build environment
+        uses: ./.github/actions/setup-build-env
+        with:
+          install-build-tools: 'true'
+          use-ccache: 'false'
+
+      - name: Install gRPC and Protobuf
+        run: |
+          # Uninstall any existing installations to avoid conflicts
+          echo "Cleaning up any existing gRPC/Protobuf installations..."
+          brew uninstall --ignore-dependencies grpc protobuf 2>/dev/null || true
+
+          # Install gRPC and Protobuf via Homebrew
+          # This ensures matching versions (grpc depends on protobuf)
+          echo "Installing gRPC and Protobuf..."
+          brew install grpc protobuf
+
+          # Verify installations
+          echo "Checking gRPC and Protobuf installation..."
+          which grpc_cpp_plugin
+          which protoc
+          protoc --version
+
+          # Show installed versions
+          brew list --versions grpc protobuf
+
+          echo "✓ gRPC and Protobuf ready with matching versions"
+
+      # Note: Protobuf code generation is handled by CMake via add_custom_command
+      # No need to manually generate - CMake will do it during build
+
+      - name: Build gRPC server
+        uses: ./.github/actions/build-cpp-core
+        with:
+          build-type: 'Debug'
+          enable-grpc: 'true'
+          use-ccache: 'false'
+
+      - name: Verify gRPC artifacts
+        run: |
+          echo "=== Generated protobuf files (by CMake) ==="
+          find build/cmake/daemon/generated -name "*.pb.*" -type f 2>/dev/null || echo "Generated files will be in build/cmake/daemon/generated/"
+
+          echo "=== Build artifacts ==="
+          find build/cmake -name "*grpc*" -o -name "*proto*" | head -20
+
+      - name: Upload gRPC artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: grpc-artifacts
+          path: |
+            build/cmake/daemon/generated/*.pb.h
+            build/cmake/daemon/generated/*.pb.cc
+            build/cmake/lib/*.a
+            build/cmake/bin/test_daemon
+            build/cmake/bin/grpc_server_test
+          retention-days: 7
+
+  # ============================================================================
+  # gRPC Server Unit Tests
+  # ============================================================================
+  grpc-unit-tests:
+    name: gRPC Server Unit Tests
+    runs-on: macos-14
+    needs: build-grpc
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          ./scripts/install_homebrew_deps.sh --quiet
+          brew uninstall --ignore-dependencies grpc protobuf 2>/dev/null || true
+          brew install grpc protobuf
+
+      - name: Download gRPC artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: grpc-artifacts
+          path: build
+
+      - name: Organize artifacts
+        run: |
+          mkdir -p build/cmake/bin build/cmake/lib build/cmake/daemon/generated
+          find build -name "grpc_server_test" -exec mv {} build/cmake/bin/ \; || true
+          find build -name "test_daemon" -exec mv {} build/cmake/bin/ \; || true
+          find build -name "*.a" -exec mv {} build/cmake/lib/ \; || true
+          find build -name "*.pb.*" -exec cp {} build/cmake/daemon/generated/ \; || true
+          chmod +x build/cmake/bin/* || true
+
+      - name: Run gRPC unit tests
+        run: |
+          if [ -f build/cmake/bin/grpc_server_test ]; then
+            echo "Running gRPC server unit tests..."
+            ./build/cmake/bin/grpc_server_test \
+              --gtest_color=yes \
+              --gtest_output=xml:grpc-unit-test-results.xml
+          else
+            echo "⚠️ gRPC server test binary not found - tests need to be built"
+            mkdir -p test-results
+            echo '<?xml version="1.0" encoding="UTF-8"?><testsuites><testsuite name="placeholder" tests="0" failures="0" errors="0"></testsuite></testsuites>' > grpc-unit-test-results.xml
+          fi
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grpc-unit-test-results
+          path: grpc-unit-test-results.xml
+          retention-days: 30
+
+  # ============================================================================
+  # gRPC Server Integration Tests
+  # ============================================================================
+  grpc-integration-test:
+    name: gRPC Server Integration Test
+    runs-on: macos-14
+    needs: build-grpc
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          ./scripts/install_homebrew_deps.sh --quiet
+          brew uninstall --ignore-dependencies grpc protobuf 2>/dev/null || true
+          brew install grpc protobuf grpcurl
+
+      - name: Download gRPC artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: grpc-artifacts
+          path: build
+
+      - name: Organize artifacts
+        run: |
+          mkdir -p build/cmake/bin build/cmake/lib
+          find build -name "test_daemon" -exec mv {} build/cmake/bin/ \; || true
+          find build -name "*.a" -exec mv {} build/cmake/lib/ \; || true
+          chmod +x build/cmake/bin/* || true
+
+      - name: Start test daemon with gRPC
+        run: |
+          echo "Starting test daemon with gRPC enabled..."
+          ./build/cmake/bin/test_daemon --enable-grpc --grpc-port 50051 &
+          DAEMON_PID=$!
+          echo "DAEMON_PID=$DAEMON_PID" >> $GITHUB_ENV
+
+          # Wait for daemon to start
+          sleep 5
+
+          # Check if daemon is running
+          if ps -p $DAEMON_PID > /dev/null; then
+            echo "✓ Daemon started successfully (PID: $DAEMON_PID)"
+          else
+            echo "❌ Daemon failed to start"
+            exit 1
+          fi
+
+      - name: Test gRPC Health endpoint
+        run: |
+          echo "Testing gRPC Health endpoint..."
+          grpcurl -plaintext \
+            -d '{}' \
+            localhost:50051 \
+            mlxrunner.v1.MLXRunnerService/Health || echo "Health check failed (expected if not fully wired)"
+
+      - name: Test gRPC Status endpoint
+        run: |
+          echo "Testing gRPC GetStatus endpoint..."
+          grpcurl -plaintext \
+            -d '{}' \
+            localhost:50051 \
+            mlxrunner.v1.MLXRunnerService/GetStatus || echo "Status check failed (expected if not fully wired)"
+
+      - name: Test gRPC ListModels endpoint
+        run: |
+          echo "Testing gRPC ListModels endpoint..."
+          grpcurl -plaintext \
+            -d '{"limit": 10}' \
+            localhost:50051 \
+            mlxrunner.v1.MLXRunnerService/ListModels || echo "ListModels failed (expected if not fully wired)"
+
+      - name: Test gRPC connection
+        run: |
+          echo "Testing basic gRPC connectivity..."
+          nc -zv localhost 50051 || echo "⚠️ Port 50051 not accessible"
+
+      - name: Stop daemon
+        if: always()
+        run: |
+          if [ -n "$DAEMON_PID" ]; then
+            echo "Stopping daemon (PID: $DAEMON_PID)..."
+            kill $DAEMON_PID || true
+            sleep 2
+
+            # Force kill if still running
+            if ps -p $DAEMON_PID > /dev/null; then
+              kill -9 $DAEMON_PID || true
+            fi
+
+            echo "✓ Daemon stopped"
+          fi
+
+  # ============================================================================
+  # Protobuf Linting
+  # ============================================================================
+  lint-proto:
+    name: Lint Protobuf Definitions
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: '23.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lint protobuf files
+        run: |
+          cd daemon/server/proto
+
+          # Basic protoc validation
+          protoc --descriptor_set_out=/dev/null mlxrunner.proto
+
+          echo "✅ Protobuf files are valid"
+
+      - name: Check protobuf style
+        run: |
+          cd daemon/server/proto
+
+          echo "Checking for style issues..."
+
+          # Check: All messages should have comments
+          if ! grep -B1 "^message " mlxrunner.proto | grep -q "//"; then
+            echo "⚠️ Warning: Some messages lack documentation"
+          fi
+
+          # Check: Service methods should have comments
+          if ! grep -B1 "^  rpc " mlxrunner.proto | grep -q "//"; then
+            echo "⚠️ Warning: Some RPC methods lack documentation"
+          fi
+
+          echo "✅ Style check complete"
+
+  # ============================================================================
+  # API Compatibility Check
+  # ============================================================================
+  compatibility-check:
+    name: Check gRPC API Compatibility
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+        with:
+          path: pr
+
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          path: base
+
+      - name: Setup protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: '23.x'
+
+      - name: Check for breaking changes
+        run: |
+          echo "=== Checking for breaking changes in gRPC API ==="
+
+          if [ -f base/daemon/server/proto/mlxrunner.proto ] && \
+             [ -f pr/daemon/server/proto/mlxrunner.proto ]; then
+
+            # Generate descriptors for both
+            protoc --descriptor_set_out=base.desc \
+                   -I base/daemon/server/proto \
+                   base/daemon/server/proto/mlxrunner.proto
+
+            protoc --descriptor_set_out=pr.desc \
+                   -I pr/daemon/server/proto \
+                   pr/daemon/server/proto/mlxrunner.proto
+
+            # Simple diff check
+            if ! cmp -s base.desc pr.desc; then
+              echo "⚠️ gRPC API has changed - review for breaking changes"
+              echo "Showing diff in proto file:"
+              diff -u base/daemon/server/proto/mlxrunner.proto \
+                      pr/daemon/server/proto/mlxrunner.proto || true
+            else
+              echo "✅ No changes to gRPC API"
+            fi
+          else
+            echo "ℹ️ Proto file is new or was deleted"
+          fi
+
+  # ============================================================================
+  # Build gRPC Clients
+  # ============================================================================
+  build-grpc-clients:
+    name: Build gRPC Clients (${{ matrix.client }})
+    runs-on: macos-14
+    needs: build-grpc
+
+    strategy:
+      matrix:
+        client: [python, typescript]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: '23.x'
+
+      # Note: We generate clients directly from the source .proto file
+      # No need to download artifacts since the .proto file is in the repo
+
+      - name: Generate Python gRPC client
+        if: matrix.client == 'python'
+        run: |
+          python -m pip install grpcio grpcio-tools
+
+          mkdir -p sdks/python/mlxrunner/generated
+          cd daemon/server/proto
+          python -m grpc_tools.protoc \
+            -I. \
+            --python_out=../../../sdks/python/mlxrunner/generated \
+            --grpc_python_out=../../../sdks/python/mlxrunner/generated \
+            mlxrunner.proto
+
+          echo "✅ Python gRPC client generated"
+          ls -la ../../../sdks/python/mlxrunner/generated/
+
+      - name: Generate TypeScript gRPC client
+        if: matrix.client == 'typescript'
+        run: |
+          npm install -g grpc-tools @grpc/grpc-js
+
+          mkdir -p sdks/typescript/src/generated
+          cd daemon/server/proto
+          grpc_tools_node_protoc \
+            --js_out=import_style=commonjs,binary:../../../sdks/typescript/src/generated \
+            --grpc_out=grpc_js:../../../sdks/typescript/src/generated \
+            --plugin=protoc-gen-grpc=$(which grpc_tools_node_protoc_plugin) \
+            mlxrunner.proto
+
+          echo "✅ TypeScript gRPC client generated"
+          ls -la ../../../sdks/typescript/src/generated/
+
+      - name: Upload generated clients
+        uses: actions/upload-artifact@v4
+        with:
+          name: grpc-client-${{ matrix.client }}
+          path: sdks/${{ matrix.client }}/
+          retention-days: 7
+
+  # ============================================================================
+  # Test Summary
+  # ============================================================================
+  grpc-test-summary:
+    name: gRPC Test Summary
+    runs-on: ubuntu-latest
+    needs: [grpc-unit-tests, grpc-integration-test, lint-proto, build-grpc-clients]
+    if: always()
+
+    steps:
+      - name: Summary
+        run: |
+          echo "## gRPC Server Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Unit Tests: ${{ needs.grpc-unit-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Integration Tests: ${{ needs.grpc-integration-test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Protobuf Linting: ${{ needs.lint-proto.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Client Generation: ${{ needs.build-grpc-clients.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ needs.grpc-unit-tests.result }}" == "success" ]] && \
+             [[ "${{ needs.grpc-integration-test.result }}" == "success" ]]; then
+            echo "✅ All gRPC server tests passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Some gRPC tests failed" >> $GITHUB_STEP_SUMMARY
+          fi

@@ -107,22 +107,13 @@ jobs:
           cd ../..
 
       # -----------------------------------------------------------------------
-      # Step 5: Build Xcode Project
+      # Step 5: Build Xcode Project with XcodeGen Action
       # -----------------------------------------------------------------------
-      - name: Setup Xcode project
-        run: |
-          echo "=== Setting up Xcode Project ==="
-          cd app/macos
-
-          # If using XcodeGen
-          if [ -f project.yml ]; then
-            if ! command -v xcodegen &> /dev/null; then
-              brew install xcodegen
-            fi
-            xcodegen generate
-          fi
-
-          cd ../..
+      - name: Generate Xcode project with XcodeGen
+        uses: xavierLowmiller/xcodegen-action@1.1.2
+        with:
+          spec: app/macos/project.yml
+          version: '2.38.0'
 
       - name: Build macOS app
         run: |
@@ -185,11 +176,32 @@ jobs:
           ls -R "$APP_BUNDLE/Contents"
 
       # -----------------------------------------------------------------------
-      # Step 7: Sign Application (Ad-hoc for now)
+      # Step 7: Sign and Notarize Application
       # -----------------------------------------------------------------------
-      - name: Sign application
+      # For production releases with proper signing, add these secrets:
+      #   - APPLE_DEVELOPER_CERTIFICATE_P12_BASE64
+      #   - APPLE_DEVELOPER_CERTIFICATE_PASSWORD
+      #   - APPLE_ID (for notarization)
+      #   - APPLE_ID_PASSWORD (app-specific password)
+      #   - APPLE_TEAM_ID
+      #
+      # Then replace this step with:
+      #   - name: Sign and Notarize
+      #     uses: indygreg/apple-code-sign-action@v1
+      #     with:
+      #       input_path: build/macos/MLXR.app
+      #       p12_file: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE_P12_BASE64 }}
+      #       p12_password: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE_PASSWORD }}
+      #       apple_id: ${{ secrets.APPLE_ID }}
+      #       apple_id_password: ${{ secrets.APPLE_ID_PASSWORD }}
+      #       team_id: ${{ secrets.APPLE_TEAM_ID }}
+      #       notarize: true
+      #       staple: true
+      #
+      # For now, using ad-hoc signing for development builds
+      - name: Sign application (ad-hoc)
         run: |
-          echo "=== Signing Application ==="
+          echo "=== Signing Application (Ad-hoc) ==="
           APP_BUNDLE="build/macos/MLXR.app"
 
           # Ad-hoc signing (for development/testing)
@@ -198,6 +210,9 @@ jobs:
           # Verify signature
           codesign --verify --verbose "$APP_BUNDLE"
           spctl --assess --verbose "$APP_BUNDLE" || true
+
+          echo "⚠️  Using ad-hoc signing - not suitable for distribution"
+          echo "To enable proper signing, add Apple Developer secrets to repository"
 
       # -----------------------------------------------------------------------
       # Step 8: Create DMG using create-dmg-action

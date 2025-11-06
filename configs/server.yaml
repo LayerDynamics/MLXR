@@ -1,0 +1,211 @@
+# MLXR Server Configuration
+# This file configures the mlxrunnerd daemon behavior
+
+# Server Transport Configuration
+transport:
+  # Unix Domain Socket (primary communication method)
+  uds:
+    enabled: true
+    path: "~/Library/Application Support/MLXRunner/run/mlxrunner.sock"
+    permissions: 0600  # Owner read/write only
+
+  # HTTP REST Server (optional, disabled by default for security)
+  http:
+    enabled: false
+    host: "127.0.0.1"  # localhost only
+    port: 11434        # Ollama-compatible port
+    cors_enabled: false
+    cors_origins: []
+
+  # gRPC Server (optional)
+  grpc:
+    enabled: true
+    host: "127.0.0.1"
+    port: 50051
+    max_message_size: 104857600  # 100MB
+
+# Performance & Scheduling Configuration
+scheduler:
+  # Maximum number of tokens in a batch
+  # Larger values increase throughput but may increase latency
+  max_batch_tokens: 2048
+
+  # Maximum number of requests in a batch
+  max_batch_size: 32
+
+  # Target latency per token (milliseconds)
+  # Scheduler will adjust batch size to meet this target
+  target_latency_ms: 80
+
+  # Prefill configuration
+  enable_chunked_prefill: true
+  prefill_chunk_size: 512  # tokens per chunk
+
+  # Continuous batching behavior
+  prefill_queue_max_wait_ms: 50   # Max wait before processing prefill
+  decode_queue_max_wait_ms: 10    # Max wait before processing decode
+
+# KV Cache Configuration
+kv_cache:
+  # Enable KV cache persistence to disk
+  # When enabled, long conversations can be resumed without full recomputation
+  persistence: true
+  persistence_dir: "~/Library/Application Support/MLXRunner/cache/kv/"
+
+  # KV cache block configuration
+  block_size: 16  # tokens per block (16 or 32)
+
+  # Memory management
+  max_gpu_blocks: 4096    # Maximum KV blocks in GPU memory
+  max_cpu_blocks: 8192    # Maximum KV blocks in CPU memory (overflow)
+
+  # Eviction policy
+  eviction_policy: "lru"  # Least Recently Used
+  working_set_size: 2048  # Keep this many recent blocks hot
+
+# Speculative Decoding Configuration
+speculative_decoding:
+  # Enable speculative decoding for lower latency
+  # Uses a smaller draft model to propose tokens, verified by main model
+  enabled: true
+
+  # Draft model configuration
+  draft_model: null  # Path to draft model (null = auto-select)
+
+  # Number of tokens to speculate ahead
+  # Auto-tuned based on acceptance rate if set to 0
+  speculation_length: 0  # 0 = auto-tune
+
+  # Minimum acceptance rate to continue speculation
+  min_acceptance_rate: 0.5  # 50%
+
+  # Auto-tuning parameters
+  auto_tune: true
+  tune_interval_requests: 100  # Re-tune every N requests
+
+# Model Configuration
+models:
+  # Default model directory
+  model_dir: "~/Library/Application Support/MLXRunner/models/"
+
+  # Default model to load on startup (optional)
+  default_model: null
+
+  # Model loading behavior
+  preload_tokenizer: true
+  validate_checksums: true
+
+  # Quantization preferences
+  prefer_quantized: true
+  default_quant_level: "q4_k"  # Q2_K, Q3_K, Q4_K, Q5_K, Q6_K, Q8_K, FP16
+
+# Tokenizer Configuration
+tokenizer:
+  # Type: sentencepiece, huggingface, or tiktoken
+  type: "auto"  # Auto-detect based on model
+
+  # Tokenizer cache
+  cache_dir: "~/Library/Application Support/MLXRunner/cache/tokenizers/"
+
+# Sampling Defaults
+# These can be overridden per-request
+sampling:
+  temperature: 0.7
+  top_p: 0.9
+  top_k: 40
+  repetition_penalty: 1.1
+  frequency_penalty: 0.0
+  presence_penalty: 0.0
+  max_tokens: 2048
+
+# RoPE Scaling Configuration
+rope:
+  # Scaling method: base, ntk, or yarn
+  scaling: "base"
+
+  # NTK-aware scaling factor (if scaling=ntk)
+  ntk_factor: 1.0
+
+  # YaRN scaling parameters (if scaling=yarn)
+  yarn:
+    scale_factor: 1.0
+    original_max_position_embeddings: 2048
+
+# Telemetry & Metrics
+telemetry:
+  # Enable Prometheus-style metrics endpoint
+  enabled: true
+
+  # Metrics endpoint (accessible via REST server)
+  endpoint: "/metrics"
+
+  # Metrics to collect
+  collect:
+    - "requests_total"
+    - "requests_duration_seconds"
+    - "tokens_generated_total"
+    - "kv_cache_utilization"
+    - "batch_size"
+    - "prefill_latency_seconds"
+    - "decode_latency_seconds"
+    - "speculation_acceptance_rate"
+
+  # Logging configuration
+  log_level: "info"  # debug, info, warn, error
+  log_file: "~/Library/Logs/mlxrunnerd.log"
+  log_rotation: true
+  max_log_size_mb: 100
+  max_log_files: 5
+
+# Security Configuration
+security:
+  # Authentication (capability token)
+  auth:
+    enabled: true
+    token_storage: "keychain"  # keychain or file
+    token_file: "~/Library/Application Support/MLXRunner/.auth_token"
+    rotate_on_startup: false
+
+  # Rate limiting
+  rate_limit:
+    enabled: false
+    requests_per_minute: 60
+    tokens_per_minute: 10000
+
+# Advanced Configuration
+advanced:
+  # Device placement
+  force_gpu: false  # Force all ops to GPU
+  force_cpu: false  # Force all ops to CPU (slow)
+  enable_ane: false  # Enable Apple Neural Engine (experimental)
+
+  # Memory management
+  unified_memory_optimization: true
+  mmap_weights: true  # Memory-map model weights
+  pin_weights: false  # Pin weights in memory (uses more RAM)
+
+  # Kernel configuration
+  metal_shader_cache: "~/Library/Caches/MLXRunner/metal/"
+  compile_all_variants: false  # Pre-compile all kernel variants on startup
+
+  # Debug options
+  profile_kernels: false
+  trace_requests: false
+  debug_scheduler: false
+
+# API Compatibility Shims
+api:
+  # OpenAI API compatibility
+  openai:
+    enabled: true
+    endpoint_prefix: "/v1"
+
+  # Ollama API compatibility
+  ollama:
+    enabled: true
+    endpoint_prefix: "/api"
+
+  # Native MLXR API
+  native:
+    enabled: true
+    endpoint_prefix: "/mlxr/v1"

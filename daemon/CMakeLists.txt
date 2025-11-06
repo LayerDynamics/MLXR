@@ -1,10 +1,65 @@
 # Daemon process (background server)
 
 # Daemon will include:
-# - REST/gRPC server
+# - REST server
+# - gRPC server (optional, enable with -DBUILD_GRPC=ON)
 # - Request scheduler
 # - Model registry (GGUF parser, model catalog)
 # - Telemetry
+
+# Option to enable gRPC support (disabled by default)
+option(BUILD_GRPC "Build with gRPC server support" OFF)
+
+# gRPC/Protobuf setup (optional)
+if(BUILD_GRPC)
+    message(STATUS "gRPC support ENABLED")
+
+    # Find gRPC (which automatically finds Protobuf as a dependency)
+    find_package(gRPC REQUIRED)
+
+    # Generate protobuf and gRPC files
+    set(PROTO_PATH "${CMAKE_CURRENT_SOURCE_DIR}/server/proto")
+    set(PROTO_FILE "${PROTO_PATH}/mlxrunner.proto")
+    set(GENERATED_PROTOBUF_PATH "${CMAKE_CURRENT_BINARY_DIR}/generated")
+
+    file(MAKE_DIRECTORY ${GENERATED_PROTOBUF_PATH})
+
+    # Generated files
+    set(PROTO_SRCS "${GENERATED_PROTOBUF_PATH}/mlxrunner.pb.cc")
+    set(PROTO_HDRS "${GENERATED_PROTOBUF_PATH}/mlxrunner.pb.h")
+    set(GRPC_SRCS "${GENERATED_PROTOBUF_PATH}/mlxrunner.grpc.pb.cc")
+    set(GRPC_HDRS "${GENERATED_PROTOBUF_PATH}/mlxrunner.grpc.pb.h")
+
+    # Find protoc and grpc_cpp_plugin
+    find_program(PROTOC_EXECUTABLE protoc REQUIRED)
+    find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin REQUIRED)
+
+    # Custom command to generate protobuf files
+    add_custom_command(
+        OUTPUT ${PROTO_SRCS} ${PROTO_HDRS} ${GRPC_SRCS} ${GRPC_HDRS}
+        COMMAND ${PROTOC_EXECUTABLE}
+        ARGS --proto_path=${PROTO_PATH}
+             --cpp_out=${GENERATED_PROTOBUF_PATH}
+             --grpc_out=${GENERATED_PROTOBUF_PATH}
+             --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
+             ${PROTO_FILE}
+        DEPENDS ${PROTO_FILE}
+        COMMENT "Generating protobuf and gRPC sources from ${PROTO_FILE}"
+        VERBATIM
+    )
+
+    set(GRPC_SOURCES
+        server/grpc_server.cpp
+        ${PROTO_SRCS}
+        ${GRPC_SRCS}
+    )
+
+    set(GRPC_ENABLED TRUE)
+else()
+    message(STATUS "gRPC support DISABLED (use -DBUILD_GRPC=ON to enable)")
+    set(GRPC_SOURCES "")
+    set(GRPC_ENABLED FALSE)
+endif()
 
 set(DAEMON_SOURCES
     # Registry components
@@ -22,6 +77,9 @@ set(DAEMON_SOURCES
 
     # Telemetry components
     telemetry/metrics.cpp
+
+    # gRPC components (if enabled)
+    ${GRPC_SOURCES}
 )
 
 # Create daemon library (will be linked into mlxrunnerd binary)
@@ -34,6 +92,14 @@ target_include_directories(mlxr_daemon PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/server
     ${CMAKE_CURRENT_SOURCE_DIR}/telemetry
 )
+
+# Add gRPC include directories if enabled
+if(BUILD_GRPC)
+    target_include_directories(mlxr_daemon PUBLIC
+        ${GENERATED_PROTOBUF_PATH}
+        ${Protobuf_INCLUDE_DIRS}
+    )
+endif()
 
 # Find SQLite3
 find_package(SQLite3 REQUIRED)
@@ -69,6 +135,15 @@ target_link_libraries(mlxr_daemon PUBLIC
     pthread            # Required by cpp-httplib ThreadPool
 )
 
+# Add gRPC libraries if enabled
+if(BUILD_GRPC)
+    target_link_libraries(mlxr_daemon PUBLIC
+        gRPC::grpc++              # gRPC C++ library
+        gRPC::grpc++_reflection   # gRPC reflection
+        protobuf::libprotobuf     # Protobuf library
+    )
+endif()
+
 # Add cpp-httplib include directory
 target_include_directories(mlxr_daemon PUBLIC ${HTTPLIB_INCLUDE_DIR})
 
@@ -89,4 +164,8 @@ set_target_properties(test_daemon PROPERTIES
 )
 
 message(STATUS "Daemon library created with GGUF parser")
+if(BUILD_GRPC)
+    message(STATUS "gRPC and Protobuf configured")
+    message(STATUS "Generated protobuf path: ${GENERATED_PROTOBUF_PATH}")
+endif()
 message(STATUS "Test daemon executable configured")

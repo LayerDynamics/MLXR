@@ -1,0 +1,129 @@
+# Mistral 7B Instruct Model Configuration
+# https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2
+
+model:
+  name: "Mistral-7B-Instruct-v0.2"
+  family: "mistral"
+  architecture: "mistral"
+
+  # Model file paths
+  path: "~/Library/Application Support/MLXRunner/models/Mistral-7B-Instruct-v0.2"
+  format: "safetensors"  # safetensors, gguf, or mlx
+
+  # Alternative: GGUF format
+  # path: "~/Library/Application Support/MLXRunner/models/mistral-7b-instruct-v0.2.Q4_K_M.gguf"
+  # format: "gguf"
+
+# Model Architecture Parameters
+architecture:
+  vocab_size: 32000
+  hidden_size: 4096
+  num_hidden_layers: 32
+  num_attention_heads: 32
+  num_key_value_heads: 8  # GQA (Grouped Query Attention)
+  intermediate_size: 14336  # MLP hidden dimension
+  max_position_embeddings: 32768  # Extended context with sliding window
+  rms_norm_eps: 1.0e-5
+  rope_theta: 10000.0
+
+  # Mistral-specific: Sliding Window Attention
+  sliding_window: 4096  # Attention window size
+
+# Tokenizer Configuration
+tokenizer:
+  type: "sentencepiece"
+  path: "~/Library/Application Support/MLXRunner/models/Mistral-7B-Instruct-v0.2/tokenizer.model"
+
+  # Special tokens
+  bos_token: "<s>"
+  eos_token: "</s>"
+  unk_token: "<unk>"
+  pad_token: "</s>"
+
+# Quantization Settings
+quantization:
+  dtype: "q4_k"  # FP16, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K, Q8_K
+  group_size: 128  # For K-quants
+
+# Context & Generation
+context:
+  max_length: 32768  # Mistral supports extended context
+  default_max_new_tokens: 1024
+
+# RoPE Scaling (for extended context)
+rope_scaling:
+  type: "base"  # Mistral uses sliding window instead of RoPE scaling
+  factor: 1.0
+
+# Chat Template (Mistral Instruct format)
+chat_template: |
+  <s>[INST] {{ user_message }} [/INST]
+
+# Alternative multi-turn format:
+# <s>[INST] {{ user_message_1 }} [/INST] {{ assistant_response_1 }}</s>
+# [INST] {{ user_message_2 }} [/INST]
+
+# System Prompt (Mistral often works better without explicit system prompt)
+default_system_prompt: null
+
+# Sampling Presets
+sampling_presets:
+  creative:
+    temperature: 0.8
+    top_p: 0.95
+    top_k: 50
+    repetition_penalty: 1.1
+
+  balanced:
+    temperature: 0.7
+    top_p: 0.9
+    top_k: 40
+    repetition_penalty: 1.1
+
+  precise:
+    temperature: 0.3
+    top_p: 0.85
+    top_k: 20
+    repetition_penalty: 1.15
+
+# Performance Hints
+performance:
+  # Recommended batch size for this model
+  optimal_batch_size: 6
+
+  # Memory estimates (approximate)
+  memory_fp16_mb: 14000
+  memory_q4_k_mb: 4500
+  memory_q8_k_mb: 8000
+
+  # Performance targets (M4)
+  target_prefill_ms: 700
+  target_decode_ms: 65
+
+  # Sliding window attention is more memory efficient
+  memory_efficient_attention: true
+
+# Model Metadata
+metadata:
+  description: "Mistral 7B Instruct v0.2 - High-performance instruction model with sliding window attention"
+  license: "Apache 2.0"
+  paper: "https://arxiv.org/abs/2310.06825"
+  huggingface: "mistralai/Mistral-7B-Instruct-v0.2"
+  version: "0.2"
+  release_date: "2024-01"
+
+  # Key features
+  features:
+    - "Sliding window attention (4096 tokens)"
+    - "Extended context (32K tokens)"
+    - "GQA for efficiency"
+    - "Strong instruction following"
+
+# Tags for organization
+tags:
+  - "chat"
+  - "instruct"
+  - "mistral"
+  - "gqa"
+  - "sliding-window"
+  - "extended-context"

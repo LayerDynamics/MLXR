@@ -1,0 +1,25 @@
+# MLXR Tools Dependencies
+# Install with: pip install -r tools/requirements.txt
+
+# Model conversion
+mlx>=0.4.0
+transformers>=4.35.0
+safetensors>=0.4.0
+torch>=2.0.0
+numpy>=1.24.0
+
+# Configuration validation
+pyyaml>=6.0
+
+# CLI tool
+requests>=2.31.0
+
+# Optional: GGUF support
+# gguf>=0.1.0  # Uncomment if using GGUF converters
+
+# Development tools
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.0.0
+ruff>=0.1.0
+mypy>=1.7.0

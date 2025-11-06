@@ -1,0 +1,395 @@
+syntax = "proto3";
+
+package mlxrunner.v1;
+
+// MLXR gRPC Service Definition
+// Provides OpenAI-compatible and Ollama-compatible RPC methods
+// with streaming support for token generation
+
+// ============================================================================
+// Main MLXR Service
+// ============================================================================
+
+service MLXRunnerService {
+  // Health and Status
+  rpc Health(HealthRequest) returns (HealthResponse);
+  rpc GetStatus(StatusRequest) returns (StatusResponse);
+
+  // Model Management
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
+  rpc GetModel(GetModelRequest) returns (GetModelResponse);
+  rpc LoadModel(LoadModelRequest) returns (LoadModelResponse);
+  rpc UnloadModel(UnloadModelRequest) returns (UnloadModelResponse);
+  rpc PullModel(PullModelRequest) returns (stream PullModelProgress);
+
+  // OpenAI-Compatible Endpoints
+  rpc CreateChatCompletion(ChatCompletionRequest) returns (stream ChatCompletionChunk);
+  rpc CreateCompletion(CompletionRequest) returns (stream CompletionChunk);
+  rpc CreateEmbedding(EmbeddingRequest) returns (EmbeddingResponse);
+
+  // Ollama-Compatible Endpoints
+  rpc Generate(GenerateRequest) returns (stream GenerateResponse);
+  rpc Chat(ChatRequest) returns (stream ChatResponse);
+  rpc Embeddings(EmbeddingsRequest) returns (EmbeddingsResponse);
+  rpc CreateBlob(CreateBlobRequest) returns (CreateBlobResponse);
+  rpc CheckBlob(CheckBlobRequest) returns (CheckBlobResponse);
+
+  // Metrics and Telemetry
+  rpc GetMetrics(MetricsRequest) returns (MetricsResponse);
+}
+
+// ============================================================================
+// Health and Status Messages
+// ============================================================================
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;  // "ok", "degraded", "error"
+  int64 uptime_seconds = 2;
+  int64 requests_processed = 3;
+  repeated string loaded_models = 4;
+}
+
+message StatusRequest {}
+
+message StatusResponse {
+  // Scheduler status
+  int32 pending_requests = 1;
+  int32 active_requests = 2;
+  int32 current_batch_size = 3;
+
+  // KV Cache status
+  int32 kv_blocks_used = 4;
+  int32 kv_blocks_total = 5;
+  float kv_utilization_percent = 6;
+
+  // Performance metrics
+  float avg_prefill_latency_ms = 7;
+  float avg_decode_latency_ms = 8;
+  float tokens_per_second = 9;
+}
+
+// ============================================================================
+// Model Management Messages
+// ============================================================================
+
+message ListModelsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message ListModelsResponse {
+  repeated ModelInfo models = 1;
+}
+
+message ModelInfo {
+  string id = 1;
+  string name = 2;
+  string family = 3;
+  string architecture = 4;
+  ModelFormat format = 5;
+  string path = 6;
+  string dtype = 7;
+  string quantization = 8;
+  int64 parameters = 9;
+  int32 max_context_length = 10;
+  int32 num_layers = 11;
+  int32 vocab_size = 12;
+  int64 file_size_bytes = 13;
+  int64 created_at = 14;
+  repeated string tags = 15;
+}
+
+enum ModelFormat {
+  MODEL_FORMAT_UNKNOWN = 0;
+  MODEL_FORMAT_GGUF = 1;
+  MODEL_FORMAT_SAFETENSORS = 2;
+  MODEL_FORMAT_MLX = 3;
+}
+
+message GetModelRequest {
+  string model_id = 1;
+}
+
+message GetModelResponse {
+  ModelInfo model = 1;
+}
+
+message LoadModelRequest {
+  string model_id = 1;
+  LoadModelOptions options = 2;
+}
+
+message LoadModelOptions {
+  string quantization = 1;  // Override default quantization
+  bool preload_weights = 2;
+  int32 max_batch_size = 3;
+}
+
+message LoadModelResponse {
+  bool success = 1;
+  string message = 2;
+  int64 load_time_ms = 3;
+}
+
+message UnloadModelRequest {
+  string model_id = 1;
+}
+
+message UnloadModelResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message PullModelRequest {
+  string model_name = 1;
+  string source = 2;  // "huggingface", "ollama", etc.
+  bool stream = 3;
+}
+
+message PullModelProgress {
+  PullStatus status = 1;
+  string message = 2;
+  int64 bytes_downloaded = 3;
+  int64 bytes_total = 4;
+  float percent_complete = 5;
+}
+
+enum PullStatus {
+  PULL_STATUS_UNKNOWN = 0;
+  PULL_STATUS_STARTED = 1;
+  PULL_STATUS_DOWNLOADING = 2;
+  PULL_STATUS_PROCESSING = 3;
+  PULL_STATUS_COMPLETED = 4;
+  PULL_STATUS_FAILED = 5;
+}
+
+// ============================================================================
+// OpenAI-Compatible Messages
+// ============================================================================
+
+message ChatCompletionRequest {
+  string model = 1;
+  repeated ChatMessage messages = 2;
+  float temperature = 3;
+  float top_p = 4;
+  int32 n = 5;
+  bool stream = 6;
+  repeated string stop = 7;
+  int32 max_tokens = 8;
+  float presence_penalty = 9;
+  float frequency_penalty = 10;
+  map<string, float> logit_bias = 11;
+  string user = 12;
+}
+
+message ChatMessage {
+  string role = 1;  // "system", "user", "assistant"
+  string content = 2;
+  string name = 3;
+}
+
+message ChatCompletionChunk {
+  string id = 1;
+  string object = 2;
+  int64 created = 3;
+  string model = 4;
+  repeated Choice choices = 5;
+  Usage usage = 6;
+}
+
+message Choice {
+  int32 index = 1;
+  ChatMessage message = 2;
+  ChatMessageDelta delta = 3;
+  string finish_reason = 4;  // "stop", "length", "tool_calls", null
+}
+
+message ChatMessageDelta {
+  string role = 1;
+  string content = 2;
+}
+
+message Usage {
+  int32 prompt_tokens = 1;
+  int32 completion_tokens = 2;
+  int32 total_tokens = 3;
+}
+
+message CompletionRequest {
+  string model = 1;
+  string prompt = 2;
+  float temperature = 3;
+  float top_p = 4;
+  int32 n = 5;
+  bool stream = 6;
+  repeated string stop = 7;
+  int32 max_tokens = 8;
+  float presence_penalty = 9;
+  float frequency_penalty = 10;
+}
+
+message CompletionChunk {
+  string id = 1;
+  string object = 2;
+  int64 created = 3;
+  string model = 4;
+  repeated CompletionChoice choices = 5;
+  Usage usage = 6;
+}
+
+message CompletionChoice {
+  string text = 1;
+  int32 index = 2;
+  string finish_reason = 3;
+}
+
+message TextArray {
+  repeated string values = 1;
+}
+
+message EmbeddingRequest {
+  string model = 1;
+  oneof input {
+    string text = 2;
+    TextArray texts = 3;
+  }
+  string encoding_format = 4;
+  string user = 5;
+}
+
+message EmbeddingResponse {
+  string object = 1;
+  repeated Embedding data = 2;
+  string model = 3;
+  Usage usage = 4;
+}
+
+message Embedding {
+  string object = 1;
+  repeated float embedding = 2;
+  int32 index = 3;
+}
+
+// ============================================================================
+// Ollama-Compatible Messages
+// ============================================================================
+
+message GenerateRequest {
+  string model = 1;
+  string prompt = 2;
+  string system = 3;
+  string template = 4;
+  GenerateOptions options = 5;
+  bool stream = 6;
+}
+
+message GenerateOptions {
+  float temperature = 1;
+  float top_p = 2;
+  int32 top_k = 3;
+  int32 num_predict = 4;
+  repeated string stop = 5;
+  float repeat_penalty = 6;
+  int32 repeat_last_n = 7;
+  int32 seed = 8;
+}
+
+message GenerateResponse {
+  string model = 1;
+  string created_at = 2;
+  string response = 3;
+  bool done = 4;
+  int64 total_duration = 5;
+  int64 load_duration = 6;
+  int64 prompt_eval_count = 7;
+  int64 prompt_eval_duration = 8;
+  int64 eval_count = 9;
+  int64 eval_duration = 10;
+}
+
+message ChatRequest {
+  string model = 1;
+  repeated ChatMessage messages = 2;
+  GenerateOptions options = 3;
+  bool stream = 4;
+}
+
+message ChatResponse {
+  string model = 1;
+  string created_at = 2;
+  ChatMessage message = 3;
+  bool done = 4;
+  int64 total_duration = 5;
+  int64 load_duration = 6;
+  int64 prompt_eval_count = 7;
+  int64 prompt_eval_duration = 8;
+  int64 eval_count = 9;
+  int64 eval_duration = 10;
+}
+
+message EmbeddingsRequest {
+  string model = 1;
+  string prompt = 2;
+}
+
+message EmbeddingsResponse {
+  repeated float embedding = 1;
+}
+
+message CreateBlobRequest {
+  bytes data = 1;
+  string digest = 2;
+}
+
+message CreateBlobResponse {
+  bool success = 1;
+  string digest = 2;
+}
+
+message CheckBlobRequest {
+  string digest = 1;
+}
+
+message CheckBlobResponse {
+  bool exists = 1;
+}
+
+// ============================================================================
+// Metrics Messages
+// ============================================================================
+
+message MetricsRequest {
+  MetricsFormat format = 1;
+}
+
+enum MetricsFormat {
+  METRICS_FORMAT_JSON = 0;
+  METRICS_FORMAT_PROMETHEUS = 1;
+}
+
+message MetricsResponse {
+  string format = 1;
+  string data = 2;  // JSON or Prometheus text format
+  map<string, MetricValue> metrics = 3;
+}
+
+message MetricValue {
+  oneof value {
+    int64 counter = 1;
+    double gauge = 2;
+    Histogram histogram = 3;
+  }
+}
+
+message Histogram {
+  int64 count = 1;
+  double sum = 2;
+  repeated Bucket buckets = 3;
+}
+
+message Bucket {
+  double upper_bound = 1;
+  int64 count = 2;
+}
