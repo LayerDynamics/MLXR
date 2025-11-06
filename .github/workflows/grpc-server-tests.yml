@@ -42,8 +42,13 @@ jobs:
 
       - name: Install gRPC and Protobuf
         run: |
+          # Uninstall any existing installations to avoid conflicts
+          echo "Cleaning up any existing gRPC/Protobuf installations..."
+          brew uninstall --ignore-dependencies grpc protobuf 2>/dev/null || true
+
           # Install gRPC and Protobuf via Homebrew
           # This ensures matching versions (grpc depends on protobuf)
+          echo "Installing gRPC and Protobuf..."
           brew install grpc protobuf
 
           # Verify installations
@@ -113,6 +118,7 @@ jobs:
       - name: Install dependencies
         run: |
           ./scripts/install_homebrew_deps.sh --quiet
+          brew uninstall --ignore-dependencies grpc protobuf 2>/dev/null || true
           brew install grpc protobuf
 
       - name: Download gRPC artifacts
@@ -166,6 +172,7 @@ jobs:
       - name: Install dependencies
         run: |
           ./scripts/install_homebrew_deps.sh --quiet
+          brew uninstall --ignore-dependencies grpc protobuf 2>/dev/null || true
           brew install grpc protobuf grpcurl
 
       - name: Download gRPC artifacts
