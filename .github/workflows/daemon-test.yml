@@ -29,7 +29,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install cmake ninja mlx sentencepiece
+          brew install cmake ninja mlx sentencepiece nlohmann-json
 
       - name: Set up Conda
         uses: conda-incubator/setup-miniconda@v3
@@ -91,7 +91,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install mlx sentencepiece
+          brew install mlx sentencepiece nlohmann-json
 
       - name: Download daemon artifacts
         uses: actions/download-artifact@v4
@@ -143,7 +143,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install mlx sentencepiece
+          brew install mlx sentencepiece nlohmann-json
 
       - name: Download daemon artifacts
         uses: actions/download-artifact@v4
@@ -260,7 +260,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install mlx sentencepiece apache-bench
+          brew install mlx sentencepiece nlohmann-json apache-bench
 
       - name: Download daemon artifacts
         uses: actions/download-artifact@v4
