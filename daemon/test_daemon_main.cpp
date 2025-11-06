@@ -8,6 +8,7 @@
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <thread>
@@ -178,8 +179,14 @@ int main() {
       std::string(home) + "/Library/Application Support/MLXRunner";
   std::string registry_path = registry_dir + "/models.db";
 
-  // Create registry directory if it doesn't exist
-  system(("mkdir -p \"" + registry_dir + "\"").c_str());
+  // Create registry directory if it doesn't exist (secure, no shell injection)
+  try {
+    std::filesystem::create_directories(registry_dir);
+  } catch (const std::filesystem::filesystem_error& e) {
+    std::cerr << "Failed to create registry directory: " << e.what()
+              << std::endl;
+    return 1;
+  }
 
   auto registry =
       std::make_shared<registry::ModelRegistry>(registry_path, true);
