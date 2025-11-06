@@ -45,7 +45,7 @@ jobs:
 
       - name: Install Homebrew dependencies
         run: |
-          brew install mlx sentencepiece nlohmann-json cpp-httplib googletest node
+          ./scripts/install_homebrew_deps.sh --with-node --quiet
 
       - name: Set up Conda
         uses: conda-incubator/setup-miniconda@v3

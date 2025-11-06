@@ -29,7 +29,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install cmake ninja mlx sentencepiece nlohmann-json cpp-httplib googletest
+          ./scripts/install_homebrew_deps.sh --build-tools --quiet
 
       - name: Set up Conda
         uses: conda-incubator/setup-miniconda@v3
@@ -91,7 +91,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install mlx sentencepiece nlohmann-json cpp-httplib googletest
+          ./scripts/install_homebrew_deps.sh --quiet
 
       - name: Download daemon artifacts
         uses: actions/download-artifact@v4
@@ -143,7 +143,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install mlx sentencepiece nlohmann-json cpp-httplib googletest
+          ./scripts/install_homebrew_deps.sh --quiet
 
       - name: Download daemon artifacts
         uses: actions/download-artifact@v4
@@ -260,7 +260,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install mlx sentencepiece nlohmann-json cpp-httplib googletest apache-bench
+          ./scripts/install_homebrew_deps.sh --with-apache-bench --quiet
 
       - name: Download daemon artifacts
         uses: actions/download-artifact@v4

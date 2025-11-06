@@ -1,0 +1,78 @@
+name: 'Setup MLXR Build Environment'
+description: 'Sets up the complete build environment for MLXR including dependencies and CMake'
+
+inputs:
+  cmake-version:
+    description: 'CMake version to install'
+    required: false
+    default: '3.27.x'
+
+  use-ccache:
+    description: 'Enable ccache for C++ compilation'
+    required: false
+    default: 'true'
+
+  ccache-key:
+    description: 'Cache key prefix for ccache'
+    required: false
+    default: 'ccache'
+
+  install-build-tools:
+    description: 'Install build tools (cmake, ninja)'
+    required: false
+    default: 'false'
+
+  install-node:
+    description: 'Install Node.js'
+    required: false
+    default: 'false'
+
+outputs:
+  cmake-configured:
+    description: 'Whether CMake was configured successfully'
+    value: ${{ steps.cmake-config.outcome == 'success' }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup CMake
+      if: inputs.install-build-tools == 'true'
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: ${{ inputs.cmake-version }}
+
+    - name: Install Homebrew dependencies
+      shell: bash
+      run: |
+        ARGS="--quiet"
+        if [ "${{ inputs.install-build-tools }}" = "true" ]; then
+          ARGS="$ARGS --build-tools"
+        fi
+        if [ "${{ inputs.install-node }}" = "true" ]; then
+          ARGS="$ARGS --with-node"
+        fi
+        ./scripts/install_homebrew_deps.sh $ARGS
+
+    - name: Setup ccache
+      if: inputs.use-ccache == 'true'
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ${{ inputs.ccache-key }}
+        max-size: 500M
+
+    - name: Verify environment
+      shell: bash
+      run: |
+        echo "=== Build Environment ==="
+        echo "CMake: $(cmake --version | head -1)"
+        echo "Ninja: $(ninja --version)"
+        echo "Xcode: $(xcodebuild -version | head -1)"
+        echo "Metal: $(xcrun metal --version | head -1)"
+
+        if [ "${{ inputs.use-ccache }}" = "true" ]; then
+          echo "ccache: $(ccache --version | head -1)"
+        fi
+
+        echo ""
+        echo "Homebrew packages:"
+        brew list | grep -E "mlx|sentencepiece|nlohmann|httplib|googletest" || true

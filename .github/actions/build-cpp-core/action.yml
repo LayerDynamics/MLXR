@@ -1,0 +1,88 @@
+name: 'Build C++ Core'
+description: 'Configures and builds the C++ core library with CMake'
+
+inputs:
+  build-type:
+    description: 'CMake build type (Release, Debug, RelWithDebInfo)'
+    required: false
+    default: 'Release'
+
+  use-ccache:
+    description: 'Enable ccache for compilation'
+    required: false
+    default: 'true'
+
+  parallel-jobs:
+    description: 'Number of parallel jobs (default: auto)'
+    required: false
+    default: ''
+
+outputs:
+  build-dir:
+    description: 'CMake build directory'
+    value: 'build/cmake'
+
+  bin-dir:
+    description: 'Binary output directory'
+    value: 'build/cmake/bin'
+
+  lib-dir:
+    description: 'Library output directory'
+    value: 'build/cmake/lib'
+
+runs:
+  using: composite
+  steps:
+    - name: Configure CMake
+      shell: bash
+      run: |
+        echo "=== Configuring CMake ==="
+
+        CMAKE_ARGS=(
+          -B build/cmake
+          -G Ninja
+          -DCMAKE_BUILD_TYPE=${{ inputs.build-type }}
+          -DCMAKE_OSX_ARCHITECTURES=arm64
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0
+        )
+
+        if [ "${{ inputs.use-ccache }}" = "true" ]; then
+          CMAKE_ARGS+=(
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          )
+        fi
+
+        cmake "${CMAKE_ARGS[@]}"
+
+    - name: Build C++ core
+      shell: bash
+      run: |
+        echo "=== Building C++ Core ==="
+
+        BUILD_ARGS=(--build build/cmake)
+
+        if [ -n "${{ inputs.parallel-jobs }}" ]; then
+          BUILD_ARGS+=(--parallel ${{ inputs.parallel-jobs }})
+        else
+          BUILD_ARGS+=(--parallel)
+        fi
+
+        cmake "${BUILD_ARGS[@]}"
+
+    - name: Display ccache statistics
+      if: inputs.use-ccache == 'true'
+      shell: bash
+      run: |
+        echo "=== ccache Statistics ==="
+        ccache -s
+
+    - name: List build artifacts
+      shell: bash
+      run: |
+        echo "=== Build Artifacts ==="
+        echo "Libraries:"
+        find build/cmake/lib -name "*.a" 2>/dev/null || echo "  (none)"
+        echo ""
+        echo "Binaries:"
+        find build/cmake/bin -type f 2>/dev/null || echo "  (none)"

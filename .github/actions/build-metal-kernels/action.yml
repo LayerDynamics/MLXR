@@ -1,0 +1,56 @@
+name: 'Build Metal Kernels'
+description: 'Compiles Metal kernels with caching support'
+
+inputs:
+  cache-key-prefix:
+    description: 'Cache key prefix for Metal libraries'
+    required: false
+    default: 'metal'
+
+  skip-cache:
+    description: 'Skip cache and force rebuild'
+    required: false
+    default: 'false'
+
+outputs:
+  cache-hit:
+    description: 'Whether cache was hit'
+    value: ${{ steps.metal-cache.outputs.cache-hit }}
+
+  metal-lib-path:
+    description: 'Path to compiled Metal libraries'
+    value: 'build/lib/*.metallib'
+
+runs:
+  using: composite
+  steps:
+    - name: Check Xcode version
+      shell: bash
+      run: |
+        echo "=== Xcode and Metal Toolchain ==="
+        xcodebuild -version
+        xcrun metal --version
+
+    - name: Cache Metal libraries
+      if: inputs.skip-cache != 'true'
+      id: metal-cache
+      uses: actions/cache@v4
+      with:
+        path: build/lib/*.metallib
+        key: ${{ inputs.cache-key-prefix }}-${{ runner.os }}-${{ hashFiles('core/kernels/metal/**/*.metal') }}
+        restore-keys: |
+          ${{ inputs.cache-key-prefix }}-${{ runner.os }}-
+
+    - name: Compile Metal shaders
+      if: inputs.skip-cache == 'true' || steps.metal-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        echo "=== Compiling Metal Kernels ==="
+        ./scripts/build_metal.sh
+
+    - name: Verify Metal libraries
+      shell: bash
+      run: |
+        echo "=== Metal Libraries ==="
+        ls -lh build/lib/*.metallib
+        file build/lib/*.metallib
