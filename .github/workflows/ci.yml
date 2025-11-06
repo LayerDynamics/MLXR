@@ -72,11 +72,9 @@ jobs:
         with:
           cmake-version: '3.27.x'
 
-      - name: Install and cache Homebrew dependencies
-        uses: tecolicom/actions-use-homebrew-tools@v1
-        with:
-          tools: mlx sentencepiece nlohmann-json cpp-httplib googletest
-          cache: yes
+      - name: Install Homebrew dependencies
+        run: |
+          brew install mlx sentencepiece nlohmann-json cpp-httplib googletest
 
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1.2
