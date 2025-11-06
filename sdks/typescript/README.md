@@ -7,8 +7,9 @@ TypeScript SDK for [MLXR](https://github.com/LayerDynamics/MLXR) - High-performa
 - ✅ **OpenAI-compatible API** - Drop-in replacement for OpenAI client
 - ✅ **Ollama-compatible API** - Full Ollama API support
 - ✅ **Unix Domain Socket** - Native macOS IPC for best performance
-- ✅ **HTTP Support** - Standard HTTP/HTTPS connections
+- ✅ **HTTP/HTTPS Support** - Standard HTTP and HTTPS connections
 - ✅ **SSE Streaming** - Real-time token streaming
+- ✅ **Automatic Retry** - Configurable exponential backoff for transient errors
 - ✅ **TypeScript Native** - Full type safety and IDE autocomplete
 - ✅ **Zero Dependencies** - Uses only Node.js built-in modules
 
@@ -68,6 +69,15 @@ const client = new MLXRClient({
   // Optional: Custom headers
   headers: {
     'X-Custom-Header': 'value',
+  },
+
+  // Optional: Retry configuration
+  retry: {
+    maxRetries: 3,                    // Maximum retry attempts (default: 3)
+    initialDelay: 1000,                // Initial delay in ms (default: 1000)
+    backoffMultiplier: 2,              // Exponential backoff multiplier (default: 2)
+    maxDelay: 10000,                   // Maximum delay in ms (default: 10000)
+    retryableStatusCodes: [408, 429, 500, 502, 503, 504], // HTTP status codes to retry
   },
 });
 ```
@@ -136,7 +146,7 @@ const response = await client.openai.createEmbedding({
   input: 'Machine learning is transforming the world.',
 });
 
-const embedding = response.data[0].embedding;
+const { embedding } = response.data[0];
 console.log('Embedding dimensions:', embedding.length);
 ```
 
@@ -392,3 +402,83 @@ Contributions are welcome! Please see the main [MLXR repository](https://github.
 - [MLXR Repository](https://github.com/LayerDynamics/MLXR)
 - [Documentation](https://github.com/LayerDynamics/MLXR/tree/main/docs)
 - [Issue Tracker](https://github.com/LayerDynamics/MLXR/issues)
+
+## Advanced Features
+
+### Automatic Retry with Exponential Backoff
+
+The SDK automatically retries requests that fail due to transient network errors or specific HTTP status codes (408, 429, 500, 502, 503, 504 by default).
+
+```typescript
+const client = new MLXRClient({
+  retry: {
+    maxRetries: 3,                // Retry up to 3 times
+    initialDelay: 1000,           // Start with 1 second delay
+    backoffMultiplier: 2,         // Double the delay each time (1s, 2s, 4s)
+    maxDelay: 10000,              // Cap delays at 10 seconds
+    retryableStatusCodes: [408, 429, 500, 502, 503, 504],
+  },
+});
+```
+
+The following errors are automatically retried:
+- Network errors (ECONNRESET, ETIMEDOUT, ENOTFOUND, ECONNREFUSED)
+- Configurable HTTP status codes (default: 408, 429, 500, 502, 503, 504)
+
+### Enhanced Health Check
+
+Check the health of both OpenAI and Ollama APIs:
+
+```typescript
+// Check OpenAI API only (default)
+const health = await client.health();
+console.log(health); // { status: 'ok', details: { openai: 'ok' } }
+
+// Check both APIs
+const health = await client.health(['openai', 'ollama']);
+console.log(health);
+// { status: 'ok', details: { openai: 'ok', ollama: 'ok' } }
+
+// Handle errors
+try {
+  const health = await client.health(['openai', 'ollama']);
+  if (health.status === 'error') {
+    console.error('Health check failed:', health.details);
+  }
+} catch (error) {
+  console.error('Health check error:', error);
+}
+```
+
+### HTTPS Support
+
+The SDK automatically uses HTTPS when the base URL starts with `https://`:
+
+```typescript
+const client = new MLXRClient({
+  baseUrl: 'https://api.example.com',  // Automatically uses HTTPS
+});
+```
+
+### Error Handling
+
+All errors include detailed information for debugging:
+
+```typescript
+try {
+  const response = await client.openai.createChatCompletion({
+    model: 'nonexistent-model',
+    messages: [{ role: 'user', content: 'Hello!' }],
+  });
+} catch (error) {
+  if (error instanceof Error) {
+    console.error('Error message:', error.message);
+    // For HTTP errors, statusCode is included
+    const statusCode = (error as any).statusCode;
+    if (statusCode) {
+      console.error('HTTP status code:', statusCode);
+    }
+  }
+}
+```
+

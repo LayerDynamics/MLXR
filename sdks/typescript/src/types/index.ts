@@ -6,6 +6,36 @@ export * from './openai';
 export * from './ollama';
 
 /**
+ * Retry configuration for handling transient network errors
+ */
+export interface RetryConfig {
+  /**
+   * Maximum number of retry attempts (default: 3)
+   */
+  maxRetries?: number;
+
+  /**
+   * Initial delay in milliseconds before first retry (default: 1000)
+   */
+  initialDelay?: number;
+
+  /**
+   * Multiplier for exponential backoff (default: 2)
+   */
+  backoffMultiplier?: number;
+
+  /**
+   * Maximum delay in milliseconds between retries (default: 10000)
+   */
+  maxDelay?: number;
+
+  /**
+   * HTTP status codes that should trigger a retry (default: [408, 429, 500, 502, 503, 504])
+   */
+  retryableStatusCodes?: number[];
+}
+
+/**
  * SDK configuration options
  */
 export interface MLXRConfig {
@@ -38,6 +68,11 @@ export interface MLXRConfig {
    * Prefer Unix domain socket over HTTP (default: true on macOS)
    */
   preferUnixSocket?: boolean;
+
+  /**
+   * Retry configuration for handling transient errors (optional)
+   */
+  retry?: RetryConfig;
 }
 
 /**

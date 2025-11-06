@@ -3,13 +3,15 @@
  */
 
 import * as http from 'http';
+import * as https from 'https';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import type { MLXRConfig } from '../types';
+import type { MLXRConfig, RetryConfig } from '../types';
+import { parseSSEStream } from './sse-parser';
 
 export interface RequestOptions {
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   path: string;
   headers?: Record<string, string>;
   body?: unknown;
@@ -22,10 +24,49 @@ export interface StreamChunk {
 }
 
 /**
+ * Sleep utility for retry delays
+ */
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Check if an error is retryable
+ */
+function isRetryableError(
+  error: unknown,
+  statusCode?: number,
+  retryableStatusCodes?: number[]
+): boolean {
+  // Network errors are retryable
+  if (error instanceof Error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (
+      code === 'ECONNRESET' ||
+      code === 'ETIMEDOUT' ||
+      code === 'ENOTFOUND' ||
+      code === 'ECONNREFUSED'
+    ) {
+      return true;
+    }
+  }
+
+  // HTTP status codes that are retryable
+  const defaultRetryableCodes = [408, 429, 500, 502, 503, 504];
+  const codes = retryableStatusCodes || defaultRetryableCodes;
+  if (statusCode && codes.includes(statusCode)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * HTTP client for MLXR API requests
  */
 export class HttpClient {
-  private config: Required<MLXRConfig>;
+  private config: Required<
+    Omit<MLXRConfig, 'retry'> & { retry: Required<RetryConfig> }
+  >;
   private unixSocketExists: boolean = false;
 
   constructor(config: MLXRConfig = {}) {
@@ -42,6 +83,15 @@ export class HttpClient {
       timeout: config.timeout || 30000,
       headers: config.headers || {},
       preferUnixSocket: config.preferUnixSocket ?? process.platform === 'darwin',
+      retry: {
+        maxRetries: config.retry?.maxRetries ?? 3,
+        initialDelay: config.retry?.initialDelay ?? 1000,
+        backoffMultiplier: config.retry?.backoffMultiplier ?? 2,
+        maxDelay: config.retry?.maxDelay ?? 10000,
+        retryableStatusCodes: config.retry?.retryableStatusCodes ?? [
+          408, 429, 500, 502, 503, 504,
+        ],
+      },
     };
 
     // Check if Unix socket exists
@@ -56,13 +106,48 @@ export class HttpClient {
   }
 
   /**
-   * Make a request to the MLXR API
+   * Make a request to the MLXR API with retry logic
    */
   async request<T>(options: RequestOptions): Promise<T> {
     if (options.stream) {
       throw new Error('Use requestStream for streaming requests');
     }
 
+    let lastError: Error | undefined;
+    let attempt = 0;
+    let delay = this.config.retry.initialDelay;
+
+    while (attempt <= this.config.retry.maxRetries) {
+      try {
+        return await this.executeRequest<T>(options);
+      } catch (error) {
+        lastError = error as Error;
+        const statusCode = (error as { statusCode?: number }).statusCode;
+
+        // Check if error is retryable
+        if (
+          attempt < this.config.retry.maxRetries &&
+          isRetryableError(error, statusCode, this.config.retry.retryableStatusCodes)
+        ) {
+          await sleep(delay);
+          delay = Math.min(
+            delay * this.config.retry.backoffMultiplier,
+            this.config.retry.maxDelay
+          );
+          attempt++;
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    throw lastError || new Error('Request failed after retries');
+  }
+
+  /**
+   * Execute a single HTTP request
+   */
+  private async executeRequest<T>(options: RequestOptions): Promise<T> {
     const useUnixSocket =
       this.config.preferUnixSocket && this.unixSocketExists;
 
@@ -80,6 +165,7 @@ export class HttpClient {
 
       let body: string | undefined;
       if (
+      // Only set Content-Length for requests with bodies
         options.body &&
         ['POST', 'PUT', 'PATCH'].includes(options.method)
       ) {
@@ -96,16 +182,19 @@ export class HttpClient {
         timeout: this.config.timeout,
       };
 
+      let requestFn: typeof http.request | typeof https.request = http.request;
+
       if (useUnixSocket) {
         requestOptions.socketPath = this.config.unixSocketPath;
       } else {
         const url = new URL(this.config.baseUrl);
         requestOptions.hostname = url.hostname;
         requestOptions.port = url.port;
-        requestOptions.protocol = url.protocol;
+        // Select appropriate request function based on protocol
+        requestFn = url.protocol === 'https:' ? https.request : http.request;
       }
 
-      const req = http.request(requestOptions, (res) => {
+      const req = requestFn(requestOptions, (res) => {
         let data = '';
 
         res.on('data', (chunk) => {
@@ -121,16 +210,22 @@ export class HttpClient {
               reject(new Error(`Failed to parse response: ${err}`));
             }
           } else {
+            // Try to parse error as JSON, but handle non-JSON responses
+            let errorMessage = `HTTP ${res.statusCode}`;
             try {
               const error = JSON.parse(data);
-              reject(
-                new Error(
-                  error.error?.message || `HTTP ${res.statusCode}: ${data}`
-                )
-              );
+              errorMessage = error.error?.message || errorMessage;
             } catch {
-              reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+              // If not JSON, include the raw response for debugging
+              errorMessage = data
+                ? `${errorMessage}: ${data.slice(0, 200)}`
+                : errorMessage;
             }
+            const error = new Error(errorMessage) as Error & {
+              statusCode?: number;
+            };
+            error.statusCode = res.statusCode;
+            reject(error);
           }
         });
       });
@@ -174,9 +269,15 @@ export class HttpClient {
     }
 
     let body: string | undefined;
-    if (options.body) {
+    // Only set Content-Length for requests with bodies
+    if (
+      options.body &&
+      ['POST', 'PUT', 'PATCH'].includes(options.method)
+    ) {
       body = JSON.stringify(options.body);
       headers['Content-Length'] = Buffer.byteLength(body).toString();
+    } else if (options.body) {
+      body = JSON.stringify(options.body);
     }
 
     const requestOptions: http.RequestOptions = {
@@ -186,88 +287,64 @@ export class HttpClient {
       timeout: this.config.timeout,
     };
 
+    let requestFn: typeof http.request | typeof https.request = http.request;
+
     if (useUnixSocket) {
       requestOptions.socketPath = this.config.unixSocketPath;
     } else {
       const url = new URL(this.config.baseUrl);
       requestOptions.hostname = url.hostname;
       requestOptions.port = url.port;
-      requestOptions.protocol = url.protocol;
+      // Select appropriate request function based on protocol
+      requestFn = url.protocol === 'https:' ? https.request : http.request;
     }
 
-    const generator = await new Promise<AsyncGenerator<StreamChunk, void, unknown>>(
-      (resolve, reject) => {
-        const req = http.request(requestOptions, (res) => {
-          if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
-            let errorData = '';
-            res.on('data', (chunk) => {
-              errorData += chunk;
-            });
-            res.on('end', () => {
-              try {
-                const error = JSON.parse(errorData);
-                reject(
-                  new Error(
-                    error.error?.message || `HTTP ${res.statusCode}: ${errorData}`
-                  )
-                );
-              } catch {
-                reject(new Error(`HTTP ${res.statusCode}: ${errorData}`));
-              }
-            });
-            return;
-          }
-
-          async function* streamGenerator() {
-            let buffer = '';
-
-            for await (const chunk of res) {
-              buffer += chunk.toString();
-              const lines = buffer.split('\n');
-              buffer = lines.pop() || '';
-
-              for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                  const data = line.slice(6).trim();
-                  if (data === '[DONE]') {
-                    yield { data: '', done: true };
-                    return;
-                  }
-                  if (data) {
-                    yield { data, done: false };
-                  }
-                }
-              }
+    const generator = await new Promise<
+      AsyncGenerator<StreamChunk, void, unknown>
+    >((resolve, reject) => {
+      const req = requestFn(requestOptions, (res) => {
+        if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
+          let errorData = '';
+          res.on('data', (chunk) => {
+            errorData += chunk;
+          });
+          res.on('end', () => {
+            // Try to parse error as JSON, but handle non-JSON responses
+            let errorMessage = `HTTP ${res.statusCode}`;
+            try {
+              const error = JSON.parse(errorData);
+              errorMessage = error.error?.message || errorMessage;
+            } catch {
+              // If not JSON, include the raw response for debugging
+              errorMessage = errorData
+                ? `${errorMessage}: ${errorData.slice(0, 200)}`
+                : errorMessage;
             }
-
-            // Process any remaining data
-            if (buffer.startsWith('data: ')) {
-              const data = buffer.slice(6).trim();
-              if (data && data !== '[DONE]') {
-                yield { data, done: false };
-              }
-            }
-          }
-
-          resolve(streamGenerator());
-        });
-
-        req.on('error', (err) => {
-          reject(err);
-        });
-
-        req.on('timeout', () => {
-          req.destroy();
-          reject(new Error('Request timeout'));
-        });
-
-        if (body) {
-          req.write(body);
+            reject(new Error(errorMessage));
+          });
+          return;
         }
 
-        req.end();
+        // Use shared SSE parser utility instead of inline parsing
+        const streamGenerator = parseSSEStream(res);
+        resolve(streamGenerator);
+      });
+
+      req.on('error', (err) => {
+        reject(err);
+      });
+
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Request timeout'));
+      });
+
+      if (body) {
+        req.write(body);
       }
-    );
+
+      req.end();
+    });
 
     yield* generator;
   }
@@ -276,7 +353,14 @@ export class HttpClient {
    * Update configuration
    */
   updateConfig(config: Partial<MLXRConfig>): void {
-    this.config = { ...this.config, ...config };
+    this.config = {
+      ...this.config,
+      ...config,
+      retry: {
+        ...this.config.retry,
+        ...(config.retry || {}),
+      },
+    };
 
     // Re-check Unix socket if path changed
     if (config.unixSocketPath) {

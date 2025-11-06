@@ -3,6 +3,7 @@
  */
 
 import { HttpClient } from '../utils/http-client';
+import { parseJSONStream } from '../utils/sse-parser';
 import type {
   MLXRConfig,
   OllamaGenerateRequest,
@@ -61,18 +62,11 @@ export class OllamaClient {
       stream: true,
     });
 
-    for await (const chunk of stream) {
-      if (chunk.done) {
+    // Use shared JSON stream parser
+    for await (const response of parseJSONStream<OllamaGenerateResponse>(stream)) {
+      yield response;
+      if (response.done) {
         break;
-      }
-      try {
-        const parsed = JSON.parse(chunk.data);
-        yield parsed as OllamaGenerateResponse;
-        if (parsed.done) {
-          break;
-        }
-      } catch (err) {
-        console.error('Failed to parse chunk:', err);
       }
     }
   }
@@ -103,18 +97,11 @@ export class OllamaClient {
       stream: true,
     });
 
-    for await (const chunk of stream) {
-      if (chunk.done) {
+    // Use shared JSON stream parser
+    for await (const response of parseJSONStream<OllamaChatResponse>(stream)) {
+      yield response;
+      if (response.done) {
         break;
-      }
-      try {
-        const parsed = JSON.parse(chunk.data);
-        yield parsed as OllamaChatResponse;
-        if (parsed.done) {
-          break;
-        }
-      } catch (err) {
-        console.error('Failed to parse chunk:', err);
       }
     }
   }
@@ -158,17 +145,8 @@ export class OllamaClient {
       stream: true,
     });
 
-    for await (const chunk of stream) {
-      if (chunk.done) {
-        break;
-      }
-      try {
-        const parsed = JSON.parse(chunk.data);
-        yield parsed as OllamaPullResponse;
-      } catch (err) {
-        console.error('Failed to parse chunk:', err);
-      }
-    }
+    // Use shared JSON stream parser
+    yield* parseJSONStream<OllamaPullResponse>(stream);
   }
 
   /**
@@ -197,17 +175,8 @@ export class OllamaClient {
       stream: true,
     });
 
-    for await (const chunk of stream) {
-      if (chunk.done) {
-        break;
-      }
-      try {
-        const parsed = JSON.parse(chunk.data);
-        yield parsed as OllamaCreateResponse;
-      } catch (err) {
-        console.error('Failed to parse chunk:', err);
-      }
-    }
+    // Use shared JSON stream parser
+    yield* parseJSONStream<OllamaCreateResponse>(stream);
   }
 
   /**

@@ -17,7 +17,7 @@ async function main() {
       input: 'Machine learning is transforming the world.',
     });
 
-    const {embedding} = response.data[0];
+    const { embedding } = response.data[0];
     console.log('Embedding dimensions:', embedding.length);
     console.log('First 10 values:', embedding.slice(0, 10));
     console.log('Usage:', response.usage);

@@ -49,14 +49,29 @@ export class MLXRClient {
 
   /**
    * Health check endpoint
+   * @param apis Array of APIs to check. Supported values: 'openai', 'ollama'. Defaults to ['openai'].
    */
-  async health(): Promise<{ status: string }> {
-    try {
-      // Try to list models as a health check
-      await this.openai.listModels();
-      return { status: 'ok' };
-    } catch (err) {
-      throw new Error(`Health check failed: ${err}`);
+  async health(
+    apis: Array<'openai' | 'ollama'> = ['openai']
+  ): Promise<{ status: string; details: Record<string, string> }> {
+    const details: Record<string, string> = {};
+    let overallStatus = 'ok';
+
+    for (const api of apis) {
+      try {
+        if (api === 'openai') {
+          await this.openai.listModels();
+          details['openai'] = 'ok';
+        } else if (api === 'ollama') {
+          await this.ollama.tags();
+          details['ollama'] = 'ok';
+        }
+      } catch (err) {
+        details[api] = `error: ${err instanceof Error ? err.message : String(err)}`;
+        overallStatus = 'error';
+      }
     }
+
+    return { status: overallStatus, details };
   }
 }

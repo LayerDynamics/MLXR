@@ -3,6 +3,7 @@
  */
 
 import { HttpClient } from '../utils/http-client';
+import { parseJSONStream } from '../utils/sse-parser';
 import type {
   MLXRConfig,
   ChatCompletionRequest,
@@ -54,17 +55,8 @@ export class OpenAIClient {
       stream: true,
     });
 
-    for await (const chunk of stream) {
-      if (chunk.done) {
-        break;
-      }
-      try {
-        const parsed = JSON.parse(chunk.data);
-        yield parsed as ChatCompletionChunk;
-      } catch (err) {
-        console.error('Failed to parse chunk:', err);
-      }
-    }
+    // Use shared JSON stream parser
+    yield* parseJSONStream<ChatCompletionChunk>(stream);
   }
 
   /**
@@ -95,17 +87,8 @@ export class OpenAIClient {
       stream: true,
     });
 
-    for await (const chunk of stream) {
-      if (chunk.done) {
-        break;
-      }
-      try {
-        const parsed = JSON.parse(chunk.data);
-        yield parsed as CompletionResponse;
-      } catch (err) {
-        console.error('Failed to parse chunk:', err);
-      }
-    }
+    // Use shared JSON stream parser
+    yield* parseJSONStream<CompletionResponse>(stream);
   }
 
   /**
