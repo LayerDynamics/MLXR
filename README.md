@@ -69,15 +69,11 @@ The following Homebrew packages are required:
 # Install all dependencies at once
 brew install cmake ninja mlx sentencepiece nlohmann-json cpp-httplib googletest
 
-# Or install individually
-brew install cmake          # Build system
-brew install ninja          # Fast build tool
-brew install mlx            # Apple's ML framework
-brew install sentencepiece  # Tokenization library
-brew install nlohmann-json  # JSON for C++
-brew install cpp-httplib    # HTTP server library
-brew install googletest     # C++ testing framework
+# Or use the Makefile convenience target
+make install-deps
 ```
+
+**Note:** CMake and Ninja must be installed via Homebrew, not Conda. The conda-forge "cmake" package is unrelated to the CMake build system.
 
 ## Project Status
 

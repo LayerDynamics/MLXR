@@ -473,7 +473,12 @@ brew install cmake ninja mlx sentencepiece nlohmann-json cpp-httplib googletest
 make install-deps
 ```
 
+**IMPORTANT:** CMake and Ninja must be installed via Homebrew. The conda-forge "cmake" package
+is NOT the CMake build system and will cause build failures.
+
 Required packages:
+- `cmake` - CMake build system (version 3.x)
+- `ninja` - Fast build tool
 - `mlx` - Apple's machine learning framework
 - `sentencepiece` - Tokenization library (required by core/runtime/tokenizer)
 - `nlohmann-json` - JSON library for C++ (required by daemon)
