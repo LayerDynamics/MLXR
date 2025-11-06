@@ -79,9 +79,14 @@ export class HttpClient {
       }
 
       let body: string | undefined;
-      if (options.body) {
+      if (
+        options.body &&
+        ['POST', 'PUT', 'PATCH'].includes(options.method)
+      ) {
         body = JSON.stringify(options.body);
         headers['Content-Length'] = Buffer.byteLength(body).toString();
+      } else if (options.body) {
+        body = JSON.stringify(options.body);
       }
 
       const requestOptions: http.RequestOptions = {
