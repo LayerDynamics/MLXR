@@ -1,0 +1,39 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+*.xcodeproj
+xcuserdata/
+DerivedData/
+
+# Xcode
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+profile
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Build artifacts
+.DS_Store
+build/
+Packages/
+
+# Swift
+*.swiftmodule
+*.swiftdoc
+*.swiftsourceinfo
+
+# SPM
+.build-linux/
+.build-macos/
+
+# Testing
+.swiftpm/xcode/
