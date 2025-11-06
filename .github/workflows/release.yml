@@ -41,7 +41,7 @@ jobs:
       - name: Install and cache dependencies
         uses: tecolicom/actions-use-homebrew-tools@v1
         with:
-          tools: cmake ninja mlx sentencepiece nlohmann-json node
+          tools: cmake ninja mlx sentencepiece nlohmann-json cpp-httplib node
           cache: yes
 
       - name: Set up Conda
