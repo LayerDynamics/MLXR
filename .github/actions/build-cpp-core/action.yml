@@ -12,6 +12,11 @@ inputs:
     required: false
     default: 'true'
 
+  enable-grpc:
+    description: 'Enable gRPC server support (requires protobuf and grpc installed)'
+    required: false
+    default: 'false'
+
   parallel-jobs:
     description: 'Number of parallel jobs (default: auto)'
     required: false
@@ -89,6 +94,14 @@ runs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           )
+        fi
+
+        # Add gRPC support if enabled
+        if [ "${{ inputs.enable-grpc }}" = "true" ]; then
+          CMAKE_ARGS+=(-DBUILD_GRPC=ON)
+          echo "gRPC support enabled"
+        else
+          CMAKE_ARGS+=(-DBUILD_GRPC=OFF)
         fi
 
         echo "CMake configuration: ${CMAKE_ARGS[@]}"
