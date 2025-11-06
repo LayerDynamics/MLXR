@@ -12,6 +12,21 @@ NC='\033[0m' # No Color
 
 echo "=== Installing MLXR Homebrew Dependencies ==="
 
+# Check if Homebrew is installed
+if ! command -v brew &>/dev/null; then
+    echo -e "${RED}✗${NC} Homebrew is not installed!"
+    echo ""
+    echo "Please install Homebrew first:"
+    echo "  https://brew.sh"
+    echo ""
+    echo "Or run:"
+    echo '  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+    echo ""
+    exit 1
+fi
+
+echo -e "${GREEN}✓${NC} Homebrew detected: $(brew --version | head -1)"
+
 # Core dependencies (always required)
 CORE_DEPS=(
     "mlx"
@@ -66,7 +81,7 @@ is_installed() {
     brew list "$1" &>/dev/null
 }
 
-# Function to install a package if not already installed
+# Function to install a package if not already installed (with retry logic)
 install_if_needed() {
     local package=$1
     if is_installed "$package"; then
@@ -75,7 +90,30 @@ install_if_needed() {
         fi
     else
         echo -e "${YELLOW}→${NC} Installing $package..."
-        brew install "$package"
+        local max_retries=3
+        local attempt=1
+        local success=false
+
+        while [ $attempt -le $max_retries ]; do
+            if brew install "$package" 2>&1; then
+                success=true
+                echo -e "${GREEN}✓${NC} Successfully installed $package"
+                break
+            else
+                echo -e "${RED}✗${NC} Failed to install $package (attempt $attempt/$max_retries)"
+                if [ $attempt -lt $max_retries ]; then
+                    echo "Retrying in 2 seconds..."
+                    sleep 2
+                fi
+            fi
+            attempt=$((attempt + 1))
+        done
+
+        if [ "$success" = false ]; then
+            echo -e "${RED}✗${NC} Could not install $package after $max_retries attempts."
+            echo "Please check your network connection and try again."
+            exit 1
+        fi
     fi
 }
 

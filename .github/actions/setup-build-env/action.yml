@@ -35,6 +35,31 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        echo "=== Validating Inputs ==="
+
+        # Validate ccache-key is not empty if ccache is enabled
+        if [ "${{ inputs.use-ccache }}" = "true" ]; then
+          CCACHE_KEY="${{ inputs.ccache-key }}"
+          if [[ -z "$CCACHE_KEY" ]]; then
+            echo "Error: ccache-key cannot be empty when use-ccache is true"
+            exit 1
+          fi
+          echo "✓ ccache-key: $CCACHE_KEY"
+        fi
+
+        # Validate cmake-version format
+        CMAKE_VERSION="${{ inputs.cmake-version }}"
+        if [[ -z "$CMAKE_VERSION" ]]; then
+          echo "Warning: cmake-version not specified, using default"
+        else
+          echo "✓ cmake-version: $CMAKE_VERSION"
+        fi
+
+        echo "✓ Input validation passed"
+
     - name: Setup CMake
       if: inputs.install-build-tools == 'true'
       uses: jwlawson/actions-setup-cmake@v2

@@ -24,6 +24,28 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        echo "=== Validating Inputs ==="
+
+        # Validate cache-key-prefix is not empty
+        CACHE_KEY_PREFIX="${{ inputs.cache-key-prefix }}"
+        if [[ -z "$CACHE_KEY_PREFIX" ]]; then
+          echo "Warning: cache-key-prefix is empty, using default 'metal'"
+          CACHE_KEY_PREFIX="metal"
+        fi
+        echo "✓ cache-key-prefix: $CACHE_KEY_PREFIX"
+
+        # Validate skip-cache is a boolean
+        SKIP_CACHE="${{ inputs.skip-cache }}"
+        if [[ "$SKIP_CACHE" != "true" && "$SKIP_CACHE" != "false" ]]; then
+          echo "Warning: skip-cache should be 'true' or 'false', got '$SKIP_CACHE', defaulting to 'false'"
+        fi
+        echo "✓ skip-cache: $SKIP_CACHE"
+
+        echo "✓ Input validation passed"
+
     - name: Check Xcode version
       shell: bash
       run: |

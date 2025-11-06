@@ -38,14 +38,13 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "Building version: $VERSION"
 
-      - name: Setup CMake
-        uses: jwlawson/actions-setup-cmake@v2
+      - name: Setup build environment
+        uses: ./.github/actions/setup-build-env
         with:
-          cmake-version: '3.27.x'
-
-      - name: Install Homebrew dependencies
-        run: |
-          ./scripts/install_homebrew_deps.sh --with-node --quiet
+          install-build-tools: 'true'
+          install-node: 'true'
+          use-ccache: 'true'
+          ccache-key: '${{ runner.os }}-release-ccache'
 
       - name: Set up Conda
         uses: conda-incubator/setup-miniconda@v3
@@ -57,45 +56,21 @@ jobs:
           use-mamba: true
 
       # -----------------------------------------------------------------------
-      # Step 1: Cache and Compile Metal Kernels
+      # Step 1: Build Metal Kernels
       # -----------------------------------------------------------------------
-      - name: Cache Metal libraries
-        uses: actions/cache@v4
-        id: metal-cache
+      - name: Build Metal kernels
+        uses: ./.github/actions/build-metal-kernels
         with:
-          path: build/lib/*.metallib
-          key: metal-release-${{ runner.os }}-${{ hashFiles('core/kernels/metal/**/*.metal') }}
-
-      - name: Compile Metal kernels
-        if: steps.metal-cache.outputs.cache-hit != 'true'
-        run: |
-          echo "=== Compiling Metal Kernels ==="
-          ./scripts/build_metal.sh
+          cache-key-prefix: 'metal-release'
 
       # -----------------------------------------------------------------------
       # Step 2: Build C++ Core with ccache
       # -----------------------------------------------------------------------
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          key: ${{ runner.os }}-release-ccache
-          max-size: 500M
-
       - name: Build C++ core
-        run: |
-          echo "=== Building C++ Core ==="
-          cmake -B build/cmake \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-
-          cmake --build build/cmake --parallel
-
-      - name: ccache statistics
-        run: ccache -s
+        uses: ./.github/actions/build-cpp-core
+        with:
+          build-type: 'Release'
+          use-ccache: 'true'
 
       # -----------------------------------------------------------------------
       # Step 3: Build Daemon Binary
