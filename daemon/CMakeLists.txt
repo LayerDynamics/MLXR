@@ -14,8 +14,7 @@ option(BUILD_GRPC "Build with gRPC server support" OFF)
 if(BUILD_GRPC)
     message(STATUS "gRPC support ENABLED")
 
-    # Find gRPC and Protobuf
-    find_package(Protobuf REQUIRED)
+    # Find gRPC (which automatically finds Protobuf as a dependency)
     find_package(gRPC REQUIRED)
 
     # Generate protobuf and gRPC files
