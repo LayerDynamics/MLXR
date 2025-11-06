@@ -38,18 +38,16 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "Building version: $VERSION"
 
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.27.x'
+
       - name: Install and cache dependencies
         uses: tecolicom/actions-use-homebrew-tools@v1
         with:
           tools: mlx sentencepiece nlohmann-json cpp-httplib googletest node
           cache: yes
-
-      - name: Verify CMake installation
-        run: |
-          # Uninstall any Homebrew cmake if it exists
-          brew uninstall --ignore-dependencies cmake 2>/dev/null || true
-          which cmake
-          cmake --version
 
       - name: Set up Conda
         uses: conda-incubator/setup-miniconda@v3
