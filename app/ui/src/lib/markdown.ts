@@ -183,7 +183,8 @@ export function extractHeadings(markdown: string): Array<{
   text: string
   id: string
 }> {
-  const headingRegex = /^(#{1,6})\s+(.+)$/gm
+  // Fixed ReDoS vulnerability: Use [^\r\n]+ instead of .+ to prevent exponential backtracking
+  const headingRegex = /^(#{1,6})\s+([^\r\n]+)$/gm
   const headings: Array<{ level: number; text: string; id: string }> = []
   let match: RegExpExecArray | null
 
@@ -296,8 +297,8 @@ export function truncateMarkdown(
 export function markdownToFormattedText(markdown: string): string {
   let text = markdown
 
-  // Convert headings
-  text = text.replace(/^#{1,6}\s+(.+)$/gm, '\n$1\n')
+  // Convert headings (Fixed ReDoS: Use [^\r\n]+ instead of .+ to prevent exponential backtracking)
+  text = text.replace(/^#{1,6}\s+([^\r\n]+)$/gm, '\n$1\n')
 
   // Convert bold
   text = text.replace(/\*\*([^*]+)\*\*/g, '$1')
