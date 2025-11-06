@@ -1,6 +1,6 @@
 # MLXR Development Makefile
 
-.PHONY: help setup install install-dev clean build test format lint metal cmake test-cpp test-cpp-verbose test-all app-xcode app-ui app app-dev app-run app-sign app-dmg app-release app-setup-test app-test app-test-verbose app-test-coverage app-test-only app-test-suite app-test-open app-test-check app-test-clean app-test-all
+.PHONY: help status install-deps setup install install-dev clean build test format lint metal cmake test-cpp test-cpp-verbose test-all app-xcode app-ui app app-dev app-run app-sign app-dmg app-release app-setup-test app-test app-test-verbose app-test-coverage app-test-only app-test-suite app-test-open app-test-check app-test-clean app-test-all
 
 # Default target
 help:
@@ -8,6 +8,7 @@ help:
 	@echo ""
 	@echo "Setup:"
 	@echo "  status        - Check environment and setup status"
+	@echo "  install-deps  - Install system dependencies via Homebrew"
 	@echo "  setup         - Initial setup with Conda (recommended)"
 	@echo "  setup-venv    - Alternative setup with virtualenv"
 	@echo ""
@@ -129,6 +130,52 @@ status:
 		echo "     Run: make metal"; \
 	fi
 	@echo ""
+	@echo "System Dependencies (Homebrew):"
+	@if command -v brew &> /dev/null; then \
+		echo "  ✓ Homebrew installed"; \
+		if brew list sentencepiece &> /dev/null; then \
+			echo "  ✓ sentencepiece"; \
+		else \
+			echo "  ❌ sentencepiece (run: brew install sentencepiece)"; \
+		fi; \
+		if brew list nlohmann-json &> /dev/null; then \
+			echo "  ✓ nlohmann-json"; \
+		else \
+			echo "  ❌ nlohmann-json (run: brew install nlohmann-json)"; \
+		fi; \
+		if brew list cpp-httplib &> /dev/null; then \
+			echo "  ✓ cpp-httplib"; \
+		else \
+			echo "  ❌ cpp-httplib (run: brew install cpp-httplib)"; \
+		fi; \
+		if brew list googletest &> /dev/null; then \
+			echo "  ✓ googletest"; \
+		else \
+			echo "  ❌ googletest (run: brew install googletest)"; \
+		fi; \
+	else \
+		echo "  ❌ Homebrew not installed"; \
+		echo "     Install from: https://brew.sh"; \
+	fi
+	@echo ""
+
+# Install system dependencies via Homebrew
+install-deps:
+	@echo "Installing system dependencies via Homebrew..."
+	@if ! command -v brew &> /dev/null; then \
+		echo "❌ Homebrew not found. Install from: https://brew.sh"; \
+		exit 1; \
+	fi
+	@echo "Installing C++ dependencies..."
+	brew install sentencepiece nlohmann-json cpp-httplib googletest
+	@echo "Installing build tools (if not present)..."
+	brew install cmake ninja
+	@echo "Installing MLX (if not present)..."
+	brew install mlx || true
+	@echo ""
+	@echo "✓ System dependencies installed!"
+	@echo ""
+	@echo "Next: make status  # Verify installation"
 
 # Setup Python environment (conda - recommended for ML)
 setup:

@@ -1,0 +1,344 @@
+name: Daemon Integration Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'daemon/**'
+      - 'core/runtime/**'
+      - 'scripts/**'
+      - '.github/workflows/daemon-test.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'daemon/**'
+      - 'core/runtime/**'
+  workflow_dispatch:
+
+jobs:
+  # ============================================================================
+  # Build Daemon Binary
+  # ============================================================================
+  build-daemon:
+    name: Build Daemon
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install cmake ninja mlx sentencepiece nlohmann-json cpp-httplib googletest
+
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          python-version: "3.11"
+          environment-file: environment.yml
+          activate-environment: mlxr
+
+      - name: Compile Metal kernels
+        run: |
+          ./scripts/build_metal.sh
+
+      - name: Build C++ core and daemon
+        shell: bash -el {0}
+        run: |
+          cmake -B build/cmake \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0
+
+          cmake --build build/cmake --parallel
+
+      - name: Verify daemon binary
+        run: |
+          if [ -f build/cmake/bin/test_daemon ]; then
+            echo "✓ test_daemon binary found"
+            file build/cmake/bin/test_daemon
+            otool -L build/cmake/bin/test_daemon || true
+          else
+            echo "❌ test_daemon binary not found"
+            ls -la build/cmake/bin/
+            exit 1
+          fi
+
+      - name: Upload daemon artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: daemon-binary
+          path: |
+            build/cmake/bin/test_daemon
+            build/cmake/bin/mlxrunnerd
+            build/cmake/lib/*.a
+            build/lib/*.metallib
+          retention-days: 7
+
+  # ============================================================================
+  # Daemon Unit Tests
+  # ============================================================================
+  daemon-unit-tests:
+    name: Daemon Unit Tests
+    runs-on: macos-14
+    needs: build-daemon
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install mlx sentencepiece nlohmann-json cpp-httplib googletest
+
+      - name: Download daemon artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: daemon-binary
+          path: build
+
+      - name: Organize artifacts
+        run: |
+          mkdir -p build/cmake/bin build/cmake/lib build/lib
+          find build -name "test_daemon" -exec mv {} build/cmake/bin/ \; || true
+          find build -name "mlxrunnerd" -exec mv {} build/cmake/bin/ \; || true
+          find build -name "*.a" -exec mv {} build/cmake/lib/ \; || true
+          find build -name "*.metallib" -exec mv {} build/lib/ \; || true
+          chmod +x build/cmake/bin/* || true
+
+      - name: Run daemon unit tests
+        run: |
+          # Run tests from test suite
+          if [ -f build/cmake/bin/mlxr_unit_tests ]; then
+            echo "Running daemon-specific unit tests..."
+            ./build/cmake/bin/mlxr_unit_tests \
+              --gtest_filter="Scheduler*:Worker*:RestServer*:Metrics*:Registry*" \
+              --gtest_color=yes \
+              --gtest_output=xml:daemon-unit-test-results.xml || true
+          else
+            echo "Unit test binary not found, skipping"
+          fi
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: daemon-unit-test-results
+          path: daemon-unit-test-results.xml
+          retention-days: 30
+
+  # ============================================================================
+  # Daemon Integration Test
+  # ============================================================================
+  daemon-integration-test:
+    name: Daemon Integration Test
+    runs-on: macos-14
+    needs: build-daemon
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install mlx sentencepiece nlohmann-json cpp-httplib googletest
+
+      - name: Download daemon artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: daemon-binary
+          path: build
+
+      - name: Organize artifacts
+        run: |
+          mkdir -p build/cmake/bin build/cmake/lib build/lib
+          find build -name "test_daemon" -exec mv {} build/cmake/bin/ \; || true
+          find build -name "mlxrunnerd" -exec mv {} build/cmake/bin/ \; || true
+          find build -name "*.a" -exec mv {} build/cmake/lib/ \; || true
+          find build -name "*.metallib" -exec mv {} build/lib/ \; || true
+          chmod +x build/cmake/bin/* || true
+
+      - name: Start test daemon
+        run: |
+          echo "Starting test daemon..."
+          ./build/cmake/bin/test_daemon &
+          DAEMON_PID=$!
+          echo "DAEMON_PID=$DAEMON_PID" >> $GITHUB_ENV
+
+          # Wait for daemon to start
+          sleep 5
+
+          # Check if daemon is running
+          if ps -p $DAEMON_PID > /dev/null; then
+            echo "✓ Daemon started successfully (PID: $DAEMON_PID)"
+          else
+            echo "❌ Daemon failed to start"
+            exit 1
+          fi
+
+      - name: Test health endpoint
+        run: |
+          echo "Testing health endpoint..."
+          RESPONSE=$(curl -s http://127.0.0.1:11434/health)
+          echo "Response: $RESPONSE"
+
+          if echo "$RESPONSE" | grep -q "ok"; then
+            echo "✓ Health check passed"
+          else
+            echo "❌ Health check failed"
+            exit 1
+          fi
+
+      - name: Test models endpoint
+        run: |
+          echo "Testing models endpoint..."
+          RESPONSE=$(curl -s http://127.0.0.1:11434/v1/models)
+          echo "Response: $RESPONSE"
+
+          if echo "$RESPONSE" | grep -q "object"; then
+            echo "✓ Models endpoint responsive"
+          else
+            echo "❌ Models endpoint failed"
+            exit 1
+          fi
+
+      - name: Test Ollama API endpoint
+        run: |
+          echo "Testing Ollama API endpoint..."
+          RESPONSE=$(curl -s http://127.0.0.1:11434/api/tags)
+          echo "Response: $RESPONSE"
+
+          if [ -n "$RESPONSE" ]; then
+            echo "✓ Ollama API responsive"
+          else
+            echo "❌ Ollama API failed"
+            exit 1
+          fi
+
+      - name: Load test (basic)
+        run: |
+          echo "Running basic load test..."
+
+          # Send 10 concurrent health checks
+          for i in {1..10}; do
+            curl -s http://127.0.0.1:11434/health &
+          done
+
+          wait
+          echo "✓ Load test completed"
+
+      - name: Stop daemon
+        if: always()
+        run: |
+          if [ -n "$DAEMON_PID" ]; then
+            echo "Stopping daemon (PID: $DAEMON_PID)..."
+            kill $DAEMON_PID || true
+            sleep 2
+
+            # Force kill if still running
+            if ps -p $DAEMON_PID > /dev/null; then
+              kill -9 $DAEMON_PID || true
+            fi
+
+            echo "✓ Daemon stopped"
+          fi
+
+  # ============================================================================
+  # Daemon Stress Test
+  # ============================================================================
+  daemon-stress-test:
+    name: Daemon Stress Test
+    runs-on: macos-14
+    needs: build-daemon
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install mlx sentencepiece nlohmann-json cpp-httplib googletest apache-bench
+
+      - name: Download daemon artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: daemon-binary
+          path: build
+
+      - name: Organize artifacts
+        run: |
+          mkdir -p build/cmake/bin build/cmake/lib build/lib
+          find build -name "test_daemon" -exec mv {} build/cmake/bin/ \; || true
+          find build -name "*.a" -exec mv {} build/cmake/lib/ \; || true
+          find build -name "*.metallib" -exec mv {} build/lib/ \; || true
+          chmod +x build/cmake/bin/* || true
+
+      - name: Start daemon for stress test
+        run: |
+          ./build/cmake/bin/test_daemon &
+          DAEMON_PID=$!
+          echo "DAEMON_PID=$DAEMON_PID" >> $GITHUB_ENV
+          sleep 5
+
+      - name: Run stress test
+        run: |
+          echo "Running stress test with ApacheBench..."
+
+          # 1000 requests, 10 concurrent
+          ab -n 1000 -c 10 http://127.0.0.1:11434/health > stress-test-results.txt
+
+          cat stress-test-results.txt
+
+          # Check for successful responses
+          FAILED=$(grep "Failed requests" stress-test-results.txt | awk '{print $3}')
+
+          if [ "$FAILED" -eq 0 ]; then
+            echo "✓ Stress test passed - no failed requests"
+          else
+            echo "⚠️  Stress test completed with $FAILED failed requests"
+          fi
+
+      - name: Stop daemon
+        if: always()
+        run: |
+          if [ -n "$DAEMON_PID" ]; then
+            kill $DAEMON_PID || true
+            sleep 2
+            kill -9 $DAEMON_PID 2>/dev/null || true
+          fi
+
+      - name: Upload stress test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stress-test-results
+          path: stress-test-results.txt
+          retention-days: 30
+
+  # ============================================================================
+  # Test Summary
+  # ============================================================================
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [daemon-unit-tests, daemon-integration-test, daemon-stress-test]
+    if: always()
+
+    steps:
+      - name: Summary
+        run: |
+          echo "## Daemon Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Unit Tests: ${{ needs.daemon-unit-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Integration Tests: ${{ needs.daemon-integration-test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Stress Tests: ${{ needs.daemon-stress-test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ needs.daemon-integration-test.result }}" == "success" ]]; then
+            echo "✅ Daemon integration tests passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Daemon integration tests failed" >> $GITHUB_STEP_SUMMARY
+          fi

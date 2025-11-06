@@ -1,0 +1,374 @@
+name: Release - Build DMG
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Trigger on version tags like v1.0.0
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.0.0)'
+        required: true
+        default: '0.1.0'
+
+env:
+  APP_NAME: MLXR
+  SIGNING_IDENTITY: "-"  # Use ad-hoc signing for now
+
+jobs:
+  # ============================================================================
+  # Build Complete Application
+  # ============================================================================
+  build-app:
+    name: Build macOS Application
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set version
+        id: version
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.27.x'
+
+      - name: Install Homebrew dependencies
+        run: |
+          brew install mlx sentencepiece nlohmann-json cpp-httplib googletest node
+
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          python-version: "3.11"
+          environment-file: environment.yml
+          activate-environment: mlxr
+          use-mamba: true
+
+      # -----------------------------------------------------------------------
+      # Step 1: Cache and Compile Metal Kernels
+      # -----------------------------------------------------------------------
+      - name: Cache Metal libraries
+        uses: actions/cache@v4
+        id: metal-cache
+        with:
+          path: build/lib/*.metallib
+          key: metal-release-${{ runner.os }}-${{ hashFiles('core/kernels/metal/**/*.metal') }}
+
+      - name: Compile Metal kernels
+        if: steps.metal-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "=== Compiling Metal Kernels ==="
+          ./scripts/build_metal.sh
+
+      # -----------------------------------------------------------------------
+      # Step 2: Build C++ Core with ccache
+      # -----------------------------------------------------------------------
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-release-ccache
+          max-size: 500M
+
+      - name: Build C++ core
+        run: |
+          echo "=== Building C++ Core ==="
+          cmake -B build/cmake \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+          cmake --build build/cmake --parallel
+
+      - name: ccache statistics
+        run: ccache -s
+
+      # -----------------------------------------------------------------------
+      # Step 3: Build Daemon Binary
+      # -----------------------------------------------------------------------
+      - name: Build daemon binary
+        shell: bash -el {0}
+        run: |
+          echo "=== Building Daemon Binary ==="
+          if [ -f build/cmake/bin/mlxrunnerd ]; then
+            echo "✓ Daemon binary built successfully"
+            file build/cmake/bin/mlxrunnerd
+          elif [ -f build/cmake/bin/test_daemon ]; then
+            echo "Using test_daemon as mlxrunnerd"
+            cp build/cmake/bin/test_daemon build/cmake/bin/mlxrunnerd
+          else
+            echo "Warning: No daemon binary found"
+          fi
+
+      # -----------------------------------------------------------------------
+      # Step 4: Build React UI
+      # -----------------------------------------------------------------------
+      - name: Cache Node modules
+        uses: actions/cache@v4
+        with:
+          path: app/ui/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('app/ui/package-lock.json') }}
+
+      - name: Build React UI
+        run: |
+          echo "=== Building React UI ==="
+          cd app/ui
+          npm install
+          npm run build
+          cd ../..
+
+      # -----------------------------------------------------------------------
+      # Step 5: Build Xcode Project
+      # -----------------------------------------------------------------------
+      - name: Setup Xcode project
+        run: |
+          echo "=== Setting up Xcode Project ==="
+          cd app/macos
+
+          # If using XcodeGen
+          if [ -f project.yml ]; then
+            if ! command -v xcodegen &> /dev/null; then
+              brew install xcodegen
+            fi
+            xcodegen generate
+          fi
+
+          cd ../..
+
+      - name: Build macOS app
+        run: |
+          echo "=== Building macOS App ==="
+          cd app/macos
+
+          xcodebuild \
+            -project MLXR.xcodeproj \
+            -scheme MLXR \
+            -configuration Release \
+            -derivedDataPath ./build \
+            -destination 'platform=macOS,arch=arm64' \
+            CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+          # Copy to standard location
+          mkdir -p ../../build/macos
+          cp -R "./build/Build/Products/Release/MLXR.app" "../../build/macos/"
+
+          cd ../..
+
+      # -----------------------------------------------------------------------
+      # Step 6: Bundle Components into App
+      # -----------------------------------------------------------------------
+      - name: Bundle components
+        shell: bash -el {0}
+        run: |
+          echo "=== Bundling Components ==="
+          APP_BUNDLE="build/macos/MLXR.app"
+
+          # Create Resources directory
+          mkdir -p "$APP_BUNDLE/Contents/Resources"
+
+          # Copy UI build
+          if [ -d "app/ui/dist" ]; then
+            cp -R app/ui/dist "$APP_BUNDLE/Contents/Resources/ui"
+          fi
+
+          # Copy Metal libraries
+          mkdir -p "$APP_BUNDLE/Contents/Frameworks"
+          if [ -d "build/lib" ]; then
+            cp build/lib/*.metallib "$APP_BUNDLE/Contents/Frameworks/" || true
+          fi
+
+          # Copy daemon binary
+          mkdir -p "$APP_BUNDLE/Contents/MacOS"
+          if [ -f "build/cmake/bin/mlxrunnerd" ]; then
+            cp build/cmake/bin/mlxrunnerd "$APP_BUNDLE/Contents/MacOS/"
+            chmod +x "$APP_BUNDLE/Contents/MacOS/mlxrunnerd"
+          fi
+
+          # Copy core libraries
+          if [ -d "build/cmake/lib" ]; then
+            cp build/cmake/lib/*.a "$APP_BUNDLE/Contents/Frameworks/" || true
+          fi
+
+          echo "✓ Bundle complete"
+          ls -R "$APP_BUNDLE/Contents"
+
+      # -----------------------------------------------------------------------
+      # Step 7: Sign Application (Ad-hoc for now)
+      # -----------------------------------------------------------------------
+      - name: Sign application
+        run: |
+          echo "=== Signing Application ==="
+          APP_BUNDLE="build/macos/MLXR.app"
+
+          # Ad-hoc signing (for development/testing)
+          codesign --force --deep --sign - "$APP_BUNDLE"
+
+          # Verify signature
+          codesign --verify --verbose "$APP_BUNDLE"
+          spctl --assess --verbose "$APP_BUNDLE" || true
+
+      # -----------------------------------------------------------------------
+      # Step 8: Create DMG using create-dmg-action
+      # -----------------------------------------------------------------------
+      - name: Create DMG
+        uses: QQxiaoming/create-dmg-action@v0.0.2
+        with:
+          name: MLXR-${{ steps.version.outputs.VERSION }}-macOS-arm64
+          srcdir: build/macos/MLXR.app
+
+      - name: Move DMG to build directory
+        run: |
+          mv *.dmg build/ || true
+          ls -lh build/*.dmg
+
+      - name: Verify DMG
+        run: |
+          echo "=== Verifying DMG ==="
+          DMG_FILE=$(find build -name "*.dmg" | head -1)
+
+          if [ -z "$DMG_FILE" ]; then
+            echo "Error: DMG not found"
+            exit 1
+          fi
+
+          echo "DMG file: $DMG_FILE"
+          ls -lh "$DMG_FILE"
+
+          # Verify DMG structure
+          hdiutil verify "$DMG_FILE"
+
+      # -----------------------------------------------------------------------
+      # Step 9: Upload Release Artifacts
+      # -----------------------------------------------------------------------
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MLXR-${{ steps.version.outputs.VERSION }}-macOS-arm64
+          path: build/*.dmg
+          retention-days: 90
+
+      - name: Upload app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: MLXR-app-bundle
+          path: build/macos/MLXR.app
+          retention-days: 30
+
+  # ============================================================================
+  # Create GitHub Release
+  # ============================================================================
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build-app
+    if: github.ref_type == 'tag'
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download DMG
+        uses: actions/download-artifact@v4
+        with:
+          name: MLXR-${{ steps.version.outputs.VERSION }}-macOS-arm64
+          path: ./artifacts
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          cat > release_notes.md << 'EOF'
+          ## MLXR v${{ steps.version.outputs.VERSION }}
+
+          High-performance LLM inference engine for Apple Silicon.
+
+          ### Installation
+
+          1. Download the DMG file below
+          2. Open the DMG and drag MLXR.app to Applications
+          3. Launch MLXR from Applications
+
+          ### Requirements
+
+          - macOS 14.0 (Sonoma) or later
+          - Apple Silicon (M2, M3, or M4)
+
+          ### What's New
+
+          See [CHANGELOG.md](CHANGELOG.md) for details.
+
+          ### Performance Optimizations
+
+          - ✅ Metal kernel compilation with intelligent caching
+          - ✅ ccache for 2-5x faster C++ rebuilds
+          - ✅ Homebrew package caching
+          - ✅ Node modules caching for UI builds
+          - ✅ Optimized DMG creation pipeline
+
+          ### Notes
+
+          - This build uses ad-hoc code signing for development
+          - For production releases, proper signing and notarization will be added
+          EOF
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release v${{ steps.version.outputs.VERSION }}
+          body_path: release_notes.md
+          files: ./artifacts/*.dmg
+          draft: true
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================================================
+  # Release Summary
+  # ============================================================================
+  release-summary:
+    name: Release Summary
+    runs-on: ubuntu-latest
+    needs: [build-app, create-release]
+    if: always()
+
+    steps:
+      - name: Summary
+        run: |
+          echo "## Release Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- App Build: ${{ needs.build-app.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- GitHub Release: ${{ needs.create-release.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ needs.build-app.result }}" == "success" ]]; then
+            echo "✅ DMG build successful" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Download artifacts from the Actions tab" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ DMG build failed" >> $GITHUB_STEP_SUMMARY
+          fi

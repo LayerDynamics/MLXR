@@ -16,10 +16,6 @@ dependencies:
   - numpy>=1.24.0
   - scipy
 
-  # Build tools
-  - cmake>=3.20
-  - ninja
-
   # Testing
   - pytest>=7.0
   - pytest-cov
