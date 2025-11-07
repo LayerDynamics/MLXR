@@ -1,0 +1,29 @@
+# CodeQL Configuration for MLXR
+# Excludes incomplete macOS app to prevent autobuild failures
+
+name: "MLXR CodeQL Config"
+
+# Disable default queries and run only security queries
+queries:
+  - uses: security-extended
+
+# Exclude paths that are not ready for analysis
+paths-ignore:
+  - 'app/macos/**'           # macOS Xcode project not yet ready
+  - 'build/**'               # Build artifacts
+  - 'third_party/**'         # Third-party dependencies
+  - '**/*.pb.h'              # Generated protobuf headers
+  - '**/*.pb.cc'             # Generated protobuf sources
+  - '**/*.grpc.pb.h'         # Generated gRPC headers
+  - '**/*.grpc.pb.cc'        # Generated gRPC sources
+  - 'build/cmake/**'         # CMake build directory
+  - 'node_modules/**'        # Node modules
+  - '**/*.metallib'          # Compiled Metal libraries
+
+# Only scan source code paths
+paths:
+  - 'core/**'
+  - 'daemon/**'
+  - 'app/ui/src/**'
+  - 'tests/**'
+  - 'examples/**'
