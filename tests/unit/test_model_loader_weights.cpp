@@ -6,9 +6,9 @@
 #include <filesystem>
 #include <fstream>
 
-#include "../../core/runtime/mmap_loader.h"
-#include "../../daemon/registry/gguf_parser.h"
-#include "../../daemon/server/model_loader.h"
+#include "runtime/mmap_loader.h"
+#include "registry/gguf_parser.h"
+#include "server/model_loader.h"
 
 namespace fs = std::filesystem;
 

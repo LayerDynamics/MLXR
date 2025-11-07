@@ -5,10 +5,10 @@
 
 #include <memory>
 
-#include "../../core/runtime/kv/arena.h"
-#include "../../core/runtime/kv/pager.h"
-#include "../../daemon/registry/model_registry.h"
-#include "../../daemon/server/model_loader.h"
+#include "runtime/kv/arena.h"
+#include "runtime/kv/pager.h"
+#include "registry/model_registry.h"
+#include "server/model_loader.h"
 
 namespace mlxr {
 namespace server {

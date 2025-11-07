@@ -6,10 +6,10 @@
 #include <filesystem>
 #include <memory>
 
-#include "../../core/runtime/mmap_loader.h"
-#include "../../daemon/registry/gguf_parser.h"
-#include "../../daemon/registry/model_registry.h"
-#include "../../daemon/server/model_loader.h"
+#include "runtime/mmap_loader.h"
+#include "registry/gguf_parser.h"
+#include "registry/model_registry.h"
+#include "server/model_loader.h"
 
 namespace fs = std::filesystem;
 
@@ -134,10 +134,10 @@ TEST_F(ModelLoaderGGUFTest, LoadConfigDefaults) {
 
   // Check defaults
   EXPECT_EQ(config.kv_block_size, 32);
-  EXPECT_EQ(config.kv_num_blocks, 256);
-  EXPECT_EQ(config.max_new_tokens, 128);
+  EXPECT_EQ(config.kv_num_blocks, 8192);
+  EXPECT_EQ(config.max_new_tokens, 2048);
   EXPECT_TRUE(config.use_cached_attention);
-  EXPECT_FALSE(config.prefetch_weights);
+  EXPECT_TRUE(config.prefetch_weights);
   EXPECT_FALSE(config.lock_weights);
 }
 

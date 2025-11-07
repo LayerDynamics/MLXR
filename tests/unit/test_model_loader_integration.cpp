@@ -6,8 +6,8 @@
 #include <filesystem>
 #include <memory>
 
-#include "../../daemon/registry/model_registry.h"
-#include "../../daemon/server/model_loader.h"
+#include "registry/model_registry.h"
+#include "server/model_loader.h"
 
 namespace fs = std::filesystem;
 
@@ -47,22 +47,22 @@ TEST_F(ModelLoaderIntegrationTest, ConfigStructure) {
 
   // Test defaults
   EXPECT_EQ(config.kv_block_size, 32);
-  EXPECT_EQ(config.kv_num_blocks, 256);
-  EXPECT_EQ(config.max_new_tokens, 128);
+  EXPECT_EQ(config.kv_num_blocks, 8192);
+  EXPECT_EQ(config.max_new_tokens, 2048);
   EXPECT_TRUE(config.use_cached_attention);
-  EXPECT_FALSE(config.prefetch_weights);
+  EXPECT_TRUE(config.prefetch_weights);
   EXPECT_FALSE(config.lock_weights);
 
   // Test custom values
   config.kv_block_size = 16;
   config.kv_num_blocks = 512;
   config.max_new_tokens = 256;
-  config.prefetch_weights = true;
+  config.prefetch_weights = false;
 
   EXPECT_EQ(config.kv_block_size, 16);
   EXPECT_EQ(config.kv_num_blocks, 512);
   EXPECT_EQ(config.max_new_tokens, 256);
-  EXPECT_TRUE(config.prefetch_weights);
+  EXPECT_FALSE(config.prefetch_weights);
 }
 
 // Test LoadedModel structure
