@@ -1793,7 +1793,7 @@ bool RestServer::load_model(const std::string& model_name) {
   auto& loaded_model = loaded_model_opt.value();
 
   // Update server components
-  model_ = loaded_model.model;
+  // Note: model is stored in engine, no need to keep separate reference
   tokenizer_ = loaded_model.tokenizer;
   engine_ = loaded_model.engine;
   current_model_name_ = model_name;
@@ -1830,10 +1830,9 @@ bool RestServer::unload_model(const std::string& model_name) {
     return false;
   }
 
-  // Clear current model
+  // Clear current model (model is stored in engine)
   engine_.reset();
   tokenizer_.reset();
-  model_.reset();
   current_model_name_.clear();
 
   std::cout << "[RestServer] Model unloaded successfully" << std::endl;
