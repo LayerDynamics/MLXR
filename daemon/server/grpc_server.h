@@ -10,16 +10,11 @@
 
 // Include headers for types used in method signatures
 #include "scheduler/request.h"      // for mlxr::scheduler::SamplingParams
+#include "scheduler/scheduler.h"     // for Scheduler (full definition needed for method calls)
 #include "registry/model_registry.h" // for ModelRegistry::ModelInfo
+#include "telemetry/metrics.h"       // for MetricsRegistry
 
 namespace mlxr {
-
-// Forward declarations
-class Scheduler;
-
-namespace telemetry {
-class MetricsRegistry;
-}
 
 class GrpcServiceImpl;
 
@@ -51,7 +46,7 @@ public:
     };
 
     GrpcServer(const Config& config,
-               std::shared_ptr<Scheduler> scheduler,
+               std::shared_ptr<scheduler::Scheduler> scheduler,
                std::shared_ptr<registry::ModelRegistry> registry,
                std::shared_ptr<telemetry::MetricsRegistry> metrics);
     ~GrpcServer();
@@ -68,7 +63,7 @@ public:
 
 private:
     Config config_;
-    std::shared_ptr<Scheduler> scheduler_;
+    std::shared_ptr<scheduler::Scheduler> scheduler_;
     std::shared_ptr<registry::ModelRegistry> registry_;
     std::shared_ptr<telemetry::MetricsRegistry> metrics_;
 
@@ -92,7 +87,7 @@ private:
  */
 class GrpcServiceImpl final : public mlxrunner::v1::MLXRunnerService::Service {
 public:
-    GrpcServiceImpl(std::shared_ptr<Scheduler> scheduler,
+    GrpcServiceImpl(std::shared_ptr<scheduler::Scheduler> scheduler,
                     std::shared_ptr<registry::ModelRegistry> registry,
                     std::shared_ptr<telemetry::MetricsRegistry> metrics);
 
@@ -175,7 +170,7 @@ public:
         mlxrunner::v1::MetricsResponse* response) override;
 
 private:
-    std::shared_ptr<Scheduler> scheduler_;
+    std::shared_ptr<scheduler::Scheduler> scheduler_;
     std::shared_ptr<registry::ModelRegistry> registry_;
     std::shared_ptr<telemetry::MetricsRegistry> metrics_;
 

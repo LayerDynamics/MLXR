@@ -18,7 +18,7 @@ namespace mlxr {
 // ============================================================================
 
 GrpcServer::GrpcServer(const Config& config,
-                       std::shared_ptr<Scheduler> scheduler,
+                       std::shared_ptr<scheduler::Scheduler> scheduler,
                        std::shared_ptr<registry::ModelRegistry> registry,
                        std::shared_ptr<telemetry::MetricsRegistry> metrics)
     : config_(config),
@@ -148,7 +148,7 @@ void GrpcServer::ConfigureBuilder(grpc::ServerBuilder& builder) {
 // GrpcServiceImpl Implementation
 // ============================================================================
 
-GrpcServiceImpl::GrpcServiceImpl(std::shared_ptr<Scheduler> scheduler,
+GrpcServiceImpl::GrpcServiceImpl(std::shared_ptr<scheduler::Scheduler> scheduler,
                                  std::shared_ptr<registry::ModelRegistry> registry,
                                  std::shared_ptr<telemetry::MetricsRegistry> metrics)
     : scheduler_(scheduler),
