@@ -102,13 +102,12 @@ TEST_F(ModelLoaderGGUFTest, RegistryIntegration) {
   registry::ModelInfo info;
   info.model_id = "test-model";
   info.name = "Test Model";
-  info.family = "llama";
+  info.architecture = registry::ModelArchitecture::LLAMA;
   info.format = registry::ModelFormat::GGUF;
   info.file_path = (test_dir_ / "test.gguf").string();
   info.tokenizer_path = (test_dir_ / "tokenizer.model").string();
-  info.dtype = "Q4_0";
-  info.quantization = "Q4_0";
-  info.num_params = 1'100'000'000;
+  info.quant_type = registry::QuantizationType::Q4_0;
+  info.param_count = 1'100'000'000;
   info.hidden_size = 2048;
   info.num_layers = 22;
   info.num_heads = 32;

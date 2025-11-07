@@ -53,7 +53,7 @@ TEST_F(ModelLoaderPagerTest, CreatePagerDefault) {
   // Check arena stats
   auto stats = arena->get_stats();
   EXPECT_EQ(stats.total_blocks, config.kv_num_blocks);
-  EXPECT_EQ(stats.free_blocks, config.kv_num_blocks);
+  EXPECT_EQ(stats.free_gpu_blocks + stats.free_cpu_blocks, config.kv_num_blocks);
   EXPECT_EQ(stats.allocated_blocks, 0);
 
   // Create pager
@@ -83,14 +83,14 @@ TEST_F(ModelLoaderPagerTest, ArenaBlockAllocation) {
 
   auto stats = arena->get_stats();
   EXPECT_EQ(stats.allocated_blocks, 1);
-  EXPECT_EQ(stats.free_blocks, 9);
+  EXPECT_EQ(stats.free_gpu_blocks + stats.free_cpu_blocks, 9);
 
   // Free the block
   arena->free_block(block_id);
 
   stats = arena->get_stats();
   EXPECT_EQ(stats.allocated_blocks, 0);
-  EXPECT_EQ(stats.free_blocks, 10);
+  EXPECT_EQ(stats.free_gpu_blocks + stats.free_cpu_blocks, 10);
 }
 
 // Test sequence creation and block allocation
@@ -206,7 +206,7 @@ TEST_F(ModelLoaderPagerTest, SequenceDeletion) {
   // Blocks should be freed
   auto arena_stats_after = arena->get_stats();
   EXPECT_EQ(arena_stats_after.allocated_blocks, 0);
-  EXPECT_EQ(arena_stats_after.free_blocks, 100);
+  EXPECT_EQ(arena_stats_after.free_gpu_blocks + arena_stats_after.free_cpu_blocks, 100);
 }
 
 // Test capacity limits
