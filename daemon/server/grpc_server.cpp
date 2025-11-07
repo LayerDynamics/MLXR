@@ -770,16 +770,28 @@ grpc::Status GrpcServiceImpl::ValidateMessageCount(int message_count) const {
 }
 
 grpc::Status GrpcServiceImpl::ValidateMaxTokens(int max_tokens) const {
+    // Note: Zero is allowed and means "use default" - callers typically filter this out,
+    // but we allow it here for defensive programming.
+    // Negative values are invalid and should be rejected.
+
+    if (max_tokens < 0) {
+        return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                          "Max tokens cannot be negative");
+    }
+
+    // Zero means "use default" - this is valid, no upper limit check needed
+    if (max_tokens == 0) {
+        return grpc::Status::OK;
+    }
+
+    // For positive values, validate against configured upper limit
     if (max_tokens > config_.max_tokens_per_request) {
         std::string error_msg = "Max tokens (" + std::to_string(max_tokens) +
                                ") exceeds maximum allowed (" +
                                std::to_string(config_.max_tokens_per_request) + ")";
         return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, error_msg);
     }
-    if (max_tokens <= 0) {
-        return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
-                          "Max tokens must be at least 1");
-    }
+
     return grpc::Status::OK;
 }
 
