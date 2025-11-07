@@ -54,7 +54,7 @@ bool GrpcServer::Start() {
         builder.AddListeningPort(server_address, creds);
 
         // Register service
-        service_ = std::make_unique<GrpcServiceImpl>(scheduler_, registry_, metrics_);
+        service_ = std::make_unique<GrpcServiceImpl>(config_, scheduler_, registry_, metrics_);
         builder.RegisterService(service_.get());
 
         // Configure options
@@ -148,10 +148,12 @@ void GrpcServer::ConfigureBuilder(grpc::ServerBuilder& builder) {
 // GrpcServiceImpl Implementation
 // ============================================================================
 
-GrpcServiceImpl::GrpcServiceImpl(std::shared_ptr<scheduler::Scheduler> scheduler,
+GrpcServiceImpl::GrpcServiceImpl(const GrpcServer::Config& config,
+                                 std::shared_ptr<scheduler::Scheduler> scheduler,
                                  std::shared_ptr<registry::ModelRegistry> registry,
                                  std::shared_ptr<telemetry::MetricsRegistry> metrics)
-    : scheduler_(scheduler),
+    : config_(config),
+      scheduler_(scheduler),
       registry_(registry),
       metrics_(metrics),
       start_time_(std::chrono::steady_clock::now()) {
@@ -251,16 +253,38 @@ grpc::Status GrpcServiceImpl::LoadModel(
     const mlxrunner::v1::LoadModelRequest* request,
     mlxrunner::v1::LoadModelResponse* response) {
 
-    // TODO: Implement model loading
-    // ModelRegistry doesn't have a LoadModel method yet
-    // This requires integration with Engine for actual loading
+    // IMPLEMENTATION REQUIRED:
+    // This RPC is currently a stub and returns UNIMPLEMENTED.
+    //
+    // To fully implement model loading, the following integration is needed:
+    // 1. Add Engine::load_model() method to core/engine/engine.{h,cpp}
+    // 2. Create ModelRegistry::load_model() to coordinate with Engine
+    // 3. Implement weight loading from registry metadata:
+    //    - For GGUF: Use existing GGUF parser + mmap loader
+    //    - For Safetensors: Implement safetensors loader with mmap
+    //    - For MLX native: Use MLX array loading
+    // 4. Initialize model state in Engine and mark as loaded in registry
+    // 5. Handle errors: model not found, insufficient memory, invalid format
+    //
+    // Expected behavior:
+    // - Load model weights into memory (GPU/unified memory)
+    // - Initialize KV cache blocks for the model
+    // - Update registry with is_loaded=true and load timestamp
+    // - Return load time and success status
+    //
+    // Related files:
+    // - core/engine/engine.{h,cpp} (needs load_model method)
+    // - daemon/registry/model_registry.{h,cpp} (needs load coordination)
+    // - core/runtime/mmap_loader.{h,cpp} (weight loading)
+    //
+    // See: docs/SESSION_2025_11_06_INTEGRATION.md for Engine integration plan
 
     response->set_success(false);
     response->set_load_time_ms(0);
-    response->set_message("Model loading not yet implemented");
+    response->set_message("Model loading not yet implemented - Engine integration required");
 
     return grpc::Status(grpc::StatusCode::UNIMPLEMENTED,
-                       "Model loading not yet implemented");
+                       "Model loading not yet implemented - see LoadModel() comments for integration TODOs");
 }
 
 grpc::Status GrpcServiceImpl::UnloadModel(
@@ -268,15 +292,37 @@ grpc::Status GrpcServiceImpl::UnloadModel(
     const mlxrunner::v1::UnloadModelRequest* request,
     mlxrunner::v1::UnloadModelResponse* response) {
 
-    // TODO: Implement model unloading
-    // ModelRegistry doesn't have an UnloadModel method yet
-    // This requires integration with Engine for actual unloading
+    // IMPLEMENTATION REQUIRED:
+    // This RPC is currently a stub and returns UNIMPLEMENTED.
+    //
+    // To fully implement model unloading, the following integration is needed:
+    // 1. Add Engine::unload_model() method to core/engine/engine.{h,cpp}
+    // 2. Create ModelRegistry::unload_model() to coordinate with Engine
+    // 3. Implement cleanup:
+    //    - Free KV cache blocks allocated to this model
+    //    - Release model weights from memory
+    //    - Cancel any pending requests for this model
+    //    - Update registry with is_loaded=false
+    // 4. Handle errors: model not found, model not loaded, active requests
+    //
+    // Expected behavior:
+    // - Gracefully drain active requests or fail with FAILED_PRECONDITION
+    // - Free GPU/unified memory allocated to model
+    // - Mark model as unloaded in registry
+    // - Return success status
+    //
+    // Related files:
+    // - core/engine/engine.{h,cpp} (needs unload_model method)
+    // - daemon/registry/model_registry.{h,cpp} (needs unload coordination)
+    // - daemon/scheduler/scheduler.{h,cpp} (needs request cancellation)
+    //
+    // See: docs/SESSION_2025_11_06_INTEGRATION.md for Engine integration plan
 
     response->set_success(false);
-    response->set_message("Model unloading not yet implemented");
+    response->set_message("Model unloading not yet implemented - Engine integration required");
 
     return grpc::Status(grpc::StatusCode::UNIMPLEMENTED,
-                       "Model unloading not yet implemented");
+                       "Model unloading not yet implemented - see UnloadModel() comments for integration TODOs");
 }
 
 grpc::Status GrpcServiceImpl::PullModel(
@@ -311,12 +357,32 @@ grpc::Status GrpcServiceImpl::CreateChatCompletion(
 
     requests_processed_.fetch_add(1);
 
+    // Validate message count
+    auto status = ValidateMessageCount(request->messages_size());
+    if (!status.ok()) {
+        return status;
+    }
+
+    // Validate max_tokens if specified
+    if (request->max_tokens() > 0) {
+        status = ValidateMaxTokens(request->max_tokens());
+        if (!status.ok()) {
+            return status;
+        }
+    }
+
     // Build prompt from messages
     std::string prompt;
     for (const auto& msg : request->messages()) {
         prompt += msg.role() + ": " + msg.content() + "\n";
     }
     prompt += "assistant: ";
+
+    // Validate total prompt length
+    status = ValidatePromptLength(prompt);
+    if (!status.ok()) {
+        return status;
+    }
 
     // TODO: Get tokenizer from model registry and tokenize prompt
     // For now, use placeholder tokens (this needs model-specific tokenizer)
@@ -381,6 +447,20 @@ grpc::Status GrpcServiceImpl::CreateCompletion(
     using namespace mlxr::scheduler;
 
     requests_processed_.fetch_add(1);
+
+    // Validate prompt length
+    auto status = ValidatePromptLength(request->prompt());
+    if (!status.ok()) {
+        return status;
+    }
+
+    // Validate max_tokens if specified
+    if (request->max_tokens() > 0) {
+        status = ValidateMaxTokens(request->max_tokens());
+        if (!status.ok()) {
+            return status;
+        }
+    }
 
     // TODO: Get tokenizer from model registry and tokenize prompt
     std::vector<int> prompt_tokens;  // Would be: tokenizer->encode(request->prompt());
@@ -452,6 +532,20 @@ grpc::Status GrpcServiceImpl::Generate(
 
     requests_processed_.fetch_add(1);
 
+    // Validate prompt length
+    auto status = ValidatePromptLength(request->prompt());
+    if (!status.ok()) {
+        return status;
+    }
+
+    // Validate max_tokens if specified in options
+    if (request->has_options() && request->options().num_predict() > 0) {
+        status = ValidateMaxTokens(request->options().num_predict());
+        if (!status.ok()) {
+            return status;
+        }
+    }
+
     // TODO: Get tokenizer from model registry and tokenize prompt
     std::vector<int> prompt_tokens;  // Would be: tokenizer->encode(request->prompt());
 
@@ -513,12 +607,32 @@ grpc::Status GrpcServiceImpl::Chat(
 
     requests_processed_.fetch_add(1);
 
+    // Validate message count
+    auto status = ValidateMessageCount(request->messages_size());
+    if (!status.ok()) {
+        return status;
+    }
+
+    // Validate max_tokens if specified in options
+    if (request->has_options() && request->options().num_predict() > 0) {
+        status = ValidateMaxTokens(request->options().num_predict());
+        if (!status.ok()) {
+            return status;
+        }
+    }
+
     // Build prompt from messages
     std::string prompt;
     for (const auto& msg : request->messages()) {
         prompt += msg.role() + ": " + msg.content() + "\n";
     }
     prompt += "assistant: ";
+
+    // Validate total prompt length
+    status = ValidatePromptLength(prompt);
+    if (!status.ok()) {
+        return status;
+    }
 
     // TODO: Get tokenizer from model registry and tokenize prompt
     std::vector<int> prompt_tokens;  // Would be: tokenizer->encode(prompt);
@@ -628,6 +742,48 @@ grpc::Status GrpcServiceImpl::GetMetrics(
 }
 
 // ----------------------------------------------------------------------------
+// Input Validation
+// ----------------------------------------------------------------------------
+
+grpc::Status GrpcServiceImpl::ValidatePromptLength(const std::string& prompt) const {
+    if (static_cast<int>(prompt.length()) > config_.max_prompt_length) {
+        std::string error_msg = "Prompt length (" + std::to_string(prompt.length()) +
+                               " chars) exceeds maximum allowed (" +
+                               std::to_string(config_.max_prompt_length) + " chars)";
+        return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, error_msg);
+    }
+    return grpc::Status::OK;
+}
+
+grpc::Status GrpcServiceImpl::ValidateMessageCount(int message_count) const {
+    if (message_count > config_.max_messages_per_request) {
+        std::string error_msg = "Message count (" + std::to_string(message_count) +
+                               ") exceeds maximum allowed (" +
+                               std::to_string(config_.max_messages_per_request) + ")";
+        return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, error_msg);
+    }
+    if (message_count <= 0) {
+        return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                          "Message count must be at least 1");
+    }
+    return grpc::Status::OK;
+}
+
+grpc::Status GrpcServiceImpl::ValidateMaxTokens(int max_tokens) const {
+    if (max_tokens > config_.max_tokens_per_request) {
+        std::string error_msg = "Max tokens (" + std::to_string(max_tokens) +
+                               ") exceeds maximum allowed (" +
+                               std::to_string(config_.max_tokens_per_request) + ")";
+        return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, error_msg);
+    }
+    if (max_tokens <= 0) {
+        return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                          "Max tokens must be at least 1");
+    }
+    return grpc::Status::OK;
+}
+
+// ----------------------------------------------------------------------------
 // Helper Methods
 // ----------------------------------------------------------------------------
 
@@ -653,9 +809,35 @@ void GrpcServiceImpl::ConvertModelInfo(const registry::ModelInfo& src,
     dst->set_name(src.name);
 
     // Convert architecture enum to string
-    // For now, just use a placeholder - proper conversion would use a lookup table
-    dst->set_family("llama");  // TODO: Convert from src.architecture enum
-    dst->set_architecture("llama");  // TODO: Convert from src.architecture enum
+    // Map ModelArchitecture enum to both family and architecture fields
+    std::string arch_string;
+    switch (src.architecture) {
+        case registry::ModelArchitecture::LLAMA:
+            arch_string = "llama";
+            break;
+        case registry::ModelArchitecture::MISTRAL:
+            arch_string = "mistral";
+            break;
+        case registry::ModelArchitecture::MIXTRAL:
+            arch_string = "mixtral";
+            break;
+        case registry::ModelArchitecture::GEMMA:
+            arch_string = "gemma";
+            break;
+        case registry::ModelArchitecture::PHI:
+            arch_string = "phi";
+            break;
+        case registry::ModelArchitecture::QWEN:
+            arch_string = "qwen";
+            break;
+        case registry::ModelArchitecture::UNKNOWN:
+        default:
+            arch_string = "unknown";
+            break;
+    }
+
+    dst->set_family(arch_string);
+    dst->set_architecture(arch_string);
 
     // Convert format enum to proto enum
     switch (src.format) {
