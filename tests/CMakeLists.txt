@@ -24,6 +24,10 @@ set(UNIT_TEST_SOURCES
     unit/metrics_test.cpp
     unit/scheduler_test.cpp
     unit/scheduler_worker_test.cpp
+    unit/test_model_loader_weights.cpp
+    unit/test_model_loader_gguf.cpp
+    unit/test_model_loader_pager.cpp
+    unit/test_model_loader_integration.cpp
 )
 
 # Create unit test executable

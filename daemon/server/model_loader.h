@@ -180,6 +180,28 @@ class ModelLoader {
   bool load_gguf_tensors(std::shared_ptr<MMapWeightLoader> loader,
                          const std::string& file_path);
 
+  /**
+   * @brief Load model weights from safetensors format
+   * @param model Model instance to load weights into
+   * @param info Model metadata containing file path
+   * @return Model instance with loaded weights, or nullptr on failure
+   */
+  std::shared_ptr<graph::CachedLlamaModel> load_model_from_safetensors(
+      std::shared_ptr<graph::CachedLlamaModel> model,
+      const registry::ModelInfo& info);
+
+  /**
+   * @brief Load model weights from GGUF format via mmap
+   * @param model Model instance to load weights into
+   * @param loader Weight loader with registered tensors
+   * @param info Model metadata
+   * @return Model instance with loaded weights, or nullptr on failure
+   */
+  std::shared_ptr<graph::CachedLlamaModel> load_model_from_gguf_mmap(
+      std::shared_ptr<graph::CachedLlamaModel> model,
+      std::shared_ptr<MMapWeightLoader> loader,
+      const registry::ModelInfo& info);
+
   std::shared_ptr<registry::ModelRegistry> registry_;
   std::string last_error_;
 };
