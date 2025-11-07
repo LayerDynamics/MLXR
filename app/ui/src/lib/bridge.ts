@@ -85,7 +85,33 @@ class BridgeClient {
    * Handle response from Swift
    */
   private handleResponse(event: MessageEvent<BridgeResponse>) {
+    // Security: Validate message origin
+    // For WKWebView, origin should be the app's internal origin
+    // We accept file:// (local files), mlxrunner:// (custom scheme), or null (postMessage from same window)
+    const trustedOrigins = ['file://', 'mlxrunner://', 'null']
+    const isTrustedOrigin = trustedOrigins.some(origin =>
+      event.origin === origin || event.origin.startsWith(origin)
+    )
+
+    if (!isTrustedOrigin && event.origin !== window.location.origin) {
+      console.warn(`[Bridge Security] Rejected message from untrusted origin: ${event.origin}`)
+      return
+    }
+
+    // Validate message structure
+    if (!event.data || typeof event.data !== 'object') {
+      console.warn('[Bridge Security] Invalid message data received')
+      return
+    }
+
     const { id, result, error } = event.data
+
+    // Validate message ID
+    if (typeof id !== 'string') {
+      console.warn('[Bridge Security] Invalid message ID')
+      return
+    }
+
     const pending = this.pendingRequests.get(id)
 
     if (!pending) {
