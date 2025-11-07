@@ -1,0 +1,142 @@
+# Example: Using Test Models in CI
+#
+# This workflow demonstrates how to use test models downloaded by the
+# download-models workflow. Copy this to test-with-models.yml and customize.
+
+name: Test with Models (Example)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+
+jobs:
+  test-inference:
+    runs-on: macos-latest  # macOS required for Metal/MLX
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: false  # Don't pull LFS files automatically
+
+      # Option 1: Download from workflow artifact (recommended for CI)
+      # Faster and doesn't count against Git LFS bandwidth quota
+      - name: Download test models from artifact
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: download-models.yml
+          workflow_conclusion: success
+          name: test-models-*
+          name_is_regexp: true
+          path: test_models/
+          if_no_artifact_found: warn
+
+      # Option 2: Pull from Git LFS (if artifact not available)
+      # Falls back to LFS if workflow artifact doesn't exist
+      - name: Pull models from Git LFS (fallback)
+        if: steps.download-artifact.outcome != 'success'
+        run: |
+          git lfs install
+          git lfs pull --include="test_models/**"
+
+      - name: Verify models downloaded
+        run: |
+          echo "Checking for test models..."
+          ls -lh test_models/
+
+          # Verify TinyLlama safetensors model
+          if [ -d "test_models/tinyllama" ]; then
+            echo "✓ TinyLlama (safetensors) found"
+            ls -lh test_models/tinyllama/
+          else
+            echo "✗ TinyLlama (safetensors) not found"
+            exit 1
+          fi
+
+          # Verify TinyLlama GGUF model
+          if [ -d "test_models/tinyllama-gguf" ]; then
+            echo "✓ TinyLlama GGUF found"
+            ls -lh test_models/tinyllama-gguf/
+          else
+            echo "✗ TinyLlama GGUF not found"
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          brew install cmake ninja mlx sentencepiece
+          pip install mlx numpy
+
+      - name: Build MLXR
+        run: |
+          make metal
+          make cmake
+          make build
+
+      - name: Test model loading (safetensors)
+        run: |
+          # Example: Test loading TinyLlama safetensors model
+          ./build/cmake/bin/simple_generation \
+            test_models/tinyllama \
+            test_models/tinyllama/tokenizer.model \
+            "Hello, world!" \
+            --max-tokens 10
+
+      - name: Test model loading (GGUF)
+        run: |
+          # Example: Test loading TinyLlama GGUF model
+          # This requires GGUF loader implementation to be complete
+          ./build/cmake/bin/simple_generation \
+            test_models/tinyllama-gguf \
+            test_models/tinyllama-gguf/tokenizer.model \
+            "Hello, world!" \
+            --max-tokens 10
+
+      - name: Run daemon tests
+        run: |
+          # Start daemon with test model
+          ./build/cmake/bin/test_daemon &
+          DAEMON_PID=$!
+
+          # Wait for startup
+          sleep 5
+
+          # Test health endpoint
+          curl -f http://localhost:11434/health
+
+          # Test model loading (when implemented)
+          # curl -X POST http://localhost:11434/v1/models/load \
+          #   -H "Content-Type: application/json" \
+          #   -d '{"model_path": "test_models/tinyllama"}'
+
+          # Cleanup
+          kill $DAEMON_PID
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_id }}
+          path: |
+            build/test-results/
+            build/cmake/Testing/
+          retention-days: 7
+
+# Alternative: Use a specific artifact by run ID
+# Useful when you want to pin to a known-good model version
+#
+# - name: Download specific model artifact
+#   uses: actions/download-artifact@v4
+#   with:
+#     name: test-models-12345678  # Replace with actual run ID
+#     path: test_models/
+#     github-token: ${{ secrets.GITHUB_TOKEN }}
+#     repository: ${{ github.repository }}
+#     run-id: 12345678  # Replace with actual run ID
