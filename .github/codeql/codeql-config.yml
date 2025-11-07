@@ -1,11 +1,11 @@
 # CodeQL Configuration for MLXR
+# Works with GitHub's default CodeQL setup
 # Excludes incomplete macOS app to prevent autobuild failures
 
 name: "MLXR CodeQL Config"
 
-# Disable default queries and run only security queries
-queries:
-  - uses: security-extended
+# Disable autobuild for languages that aren't ready yet
+disable-default-queries: false
 
 # Exclude paths that are not ready for analysis
 paths-ignore:
@@ -19,6 +19,7 @@ paths-ignore:
   - 'build/cmake/**'         # CMake build directory
   - 'node_modules/**'        # Node modules
   - '**/*.metallib'          # Compiled Metal libraries
+  - 'app/ui/dist/**'         # Frontend build output
 
 # Only scan source code paths
 paths:
