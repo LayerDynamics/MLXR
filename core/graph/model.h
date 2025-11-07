@@ -251,6 +251,14 @@ class CachedLlamaModel {
   bool load_weights_from_dir(const std::string& dir_path);
 
   /**
+   * @brief Load weights from pre-parsed weight map
+   * @param weights Map of tensor names to tensor data
+   * @return true if successful
+   */
+  bool load_from_weight_map(
+      const std::unordered_map<std::string, Tensor>& weights);
+
+  /**
    * @brief Get model configuration
    */
   const ModelConfig& config() const { return config_; }

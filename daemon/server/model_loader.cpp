@@ -363,18 +363,96 @@ std::shared_ptr<graph::CachedLlamaModel> ModelLoader::create_cached_model(
             << model_config.num_kv_heads << " KV heads)" << std::endl;
 
   // Create CachedLlamaModel
-  // Note: This is a placeholder - actual implementation would need to
-  // load weights from the mmap loader into MLX arrays
   auto model = std::make_shared<graph::CachedLlamaModel>(model_config, pager);
 
-  // TODO: Load weights from loader into model
-  // This requires:
-  // 1. Parsing weight layout from file format (GGUF/safetensors/MLX)
-  // 2. Creating MLX arrays from mmap'd memory regions
-  // 3. Setting weights in model layers
-  //
-  // For now, this is a skeleton that establishes the architecture
-  // Actual weight loading will be implemented in a follow-up
+  // Load weights based on format
+  std::cout << "[ModelLoader] Loading weights from: " << info.file_path
+            << std::endl;
+
+  if (info.format == registry::ModelFormat::SAFETENSORS) {
+    // For safetensors, use MLX's native loading
+    if (!model->load_weights(info.file_path)) {
+      std::cerr << "[ModelLoader] Failed to load safetensors weights"
+                << std::endl;
+      return nullptr;
+    }
+    std::cout << "[ModelLoader] Safetensors weights loaded successfully"
+              << std::endl;
+
+  } else if (info.format == registry::ModelFormat::GGUF) {
+    // For GGUF, we need to create MLX arrays from mmap'd tensors
+    std::cout << "[ModelLoader] Converting GGUF tensors to MLX arrays..."
+              << std::endl;
+
+    // Get list of registered tensors
+    auto tensor_names = loader->list_tensors();
+    std::cout << "[ModelLoader] Found " << tensor_names.size()
+              << " tensors in GGUF file" << std::endl;
+
+    // Create weight map from mmap'd tensors
+    std::unordered_map<std::string, graph::Tensor> weight_map;
+
+    for (const auto& name : tensor_names) {
+      auto tensor_info_opt = loader->get_tensor_info(name);
+      if (!tensor_info_opt.has_value()) {
+        continue;
+      }
+
+      const auto& tensor_info = tensor_info_opt.value();
+
+      // Map tensor to MLX array
+      // TODO: For quantized tensors (q4_0, q5_k, etc.), need dequantization
+      // For now, only support FP16/FP32 tensors
+      if (tensor_info.dtype != "fp16" && tensor_info.dtype != "fp32") {
+        std::cout << "[ModelLoader] Skipping quantized tensor: " << name
+                  << " (type: " << tensor_info.dtype << ")" << std::endl;
+        std::cout << "[ModelLoader] Quantized weight loading not yet "
+                     "implemented"
+                  << std::endl;
+        std::cout
+            << "[ModelLoader] Please convert model to FP16 safetensors format"
+            << std::endl;
+        return nullptr;
+      }
+
+      // Map the tensor region
+      auto region = loader->map_tensor(name, /*prefetch=*/true);
+      if (!region.is_valid) {
+        std::cerr << "[ModelLoader] Failed to map tensor: " << name << std::endl;
+        return nullptr;
+      }
+
+      // Create MLX array from mmap'd region
+      // Note: This creates a copy since MLX arrays manage their own memory
+      mlx::core::Dtype mlx_dtype =
+          (tensor_info.dtype == "fp16") ? mlx::core::float16 : mlx::core::float32;
+
+      auto mlx_array =
+          mlx::core::array(region.data, tensor_info.shape, mlx_dtype);
+
+      // Force evaluation to ensure data is copied
+      mlx::core::eval(mlx_array);
+
+      weight_map[name] = graph::Tensor(mlx_array);
+    }
+
+    std::cout << "[ModelLoader] Created " << weight_map.size()
+              << " MLX arrays from GGUF tensors" << std::endl;
+
+    // Assign weights to model
+    // Note: CachedLlamaModel's load_from_weight_map handles HF name mapping
+    if (!model->load_from_weight_map(weight_map)) {
+      std::cerr << "[ModelLoader] Failed to assign weights to model"
+                << std::endl;
+      return nullptr;
+    }
+
+    std::cout << "[ModelLoader] GGUF weights loaded successfully" << std::endl;
+
+  } else {
+    std::cerr << "[ModelLoader] Unsupported model format" << std::endl;
+    return nullptr;
+  }
 
   return model;
 }
@@ -396,8 +474,32 @@ std::shared_ptr<graph::LlamaModel> ModelLoader::create_simple_model(
   // Create LlamaModel
   auto model = std::make_shared<graph::LlamaModel>(model_config);
 
-  // TODO: Load weights from loader into model
-  // Similar to cached model but without pager integration
+  // Load weights based on format
+  std::cout << "[ModelLoader] Loading weights for simple model from: "
+            << info.file_path << std::endl;
+
+  if (info.format == registry::ModelFormat::SAFETENSORS) {
+    // For safetensors, use MLX's native loading
+    if (!model->load_weights(info.file_path)) {
+      std::cerr << "[ModelLoader] Failed to load safetensors weights"
+                << std::endl;
+      return nullptr;
+    }
+    std::cout << "[ModelLoader] Safetensors weights loaded successfully"
+              << std::endl;
+
+  } else if (info.format == registry::ModelFormat::GGUF) {
+    std::cout << "[ModelLoader] GGUF format not yet supported for simple model"
+              << std::endl;
+    std::cout << "[ModelLoader] Please use safetensors format or enable cached "
+                 "attention"
+              << std::endl;
+    return nullptr;
+
+  } else {
+    std::cerr << "[ModelLoader] Unsupported model format" << std::endl;
+    return nullptr;
+  }
 
   return model;
 }
