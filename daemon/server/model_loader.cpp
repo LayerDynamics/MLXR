@@ -10,6 +10,7 @@
 #include "../../core/runtime/kv/eviction.h"
 #include "../../core/runtime/kv/pager.h"
 #include "../../core/runtime/tokenizer/sentencepiece_tokenizer.h"
+#include "../registry/gguf_parser.h"
 
 namespace mlxr {
 namespace server {
@@ -239,6 +240,17 @@ std::shared_ptr<MMapWeightLoader> ModelLoader::load_weights(
     return nullptr;
   }
 
+  // Check if this is a GGUF file and register tensors if so
+  if (file_path.ends_with(".gguf") || file_path.ends_with(".GGUF")) {
+    std::cout << "[ModelLoader] Detected GGUF format, parsing tensor metadata..."
+              << std::endl;
+
+    if (!load_gguf_tensors(loader, file_path)) {
+      std::cerr << "[ModelLoader] Failed to parse GGUF file" << std::endl;
+      return nullptr;
+    }
+  }
+
   // Map entire file (or specific tensors as needed)
   // For now, we map the entire file for simplicity
   auto region = loader->map_all(prefetch);
@@ -266,6 +278,69 @@ std::shared_ptr<MMapWeightLoader> ModelLoader::load_weights(
   loader->advise(region, MMapWeightLoader::AdvicePattern::SEQUENTIAL);
 
   return loader;
+}
+
+bool ModelLoader::load_gguf_tensors(std::shared_ptr<MMapWeightLoader> loader,
+                                     const std::string& file_path) {
+  // Parse GGUF file to get tensor metadata
+  registry::GGUFFile gguf;
+  if (!gguf.parse(file_path)) {
+    std::cerr << "[ModelLoader] Failed to parse GGUF file: " << gguf.error()
+              << std::endl;
+    return false;
+  }
+
+  std::cout << "[ModelLoader] GGUF file parsed successfully:" << std::endl;
+  std::cout << "[ModelLoader]   Version: " << gguf.header().version << std::endl;
+  std::cout << "[ModelLoader]   Tensors: " << gguf.header().tensor_count
+            << std::endl;
+  std::cout << "[ModelLoader]   Architecture: " << gguf.get_arch() << std::endl;
+  std::cout << "[ModelLoader]   Context length: " << gguf.get_context_length()
+            << std::endl;
+  std::cout << "[ModelLoader]   Attention heads: "
+            << gguf.get_attention_head_count() << " ("
+            << gguf.get_attention_head_count_kv() << " KV heads)" << std::endl;
+
+  // Register each tensor with the weight loader
+  const auto& tensors = gguf.tensors();
+  uint64_t data_offset = gguf.data_offset();
+
+  std::cout << "[ModelLoader] Registering " << tensors.size()
+            << " tensors with weight loader..." << std::endl;
+
+  for (const auto& tensor_info : tensors) {
+    // Convert GGUF tensor info to WeightTensor format
+    WeightTensor weight_tensor;
+    weight_tensor.name = tensor_info.name;
+
+    // Convert dimensions from uint64_t to int64_t
+    weight_tensor.shape.reserve(tensor_info.dimensions.size());
+    for (uint64_t dim : tensor_info.dimensions) {
+      weight_tensor.shape.push_back(static_cast<int64_t>(dim));
+    }
+
+    // Calculate absolute file offset (data_offset + tensor offset)
+    weight_tensor.file_offset = data_offset + tensor_info.offset;
+    weight_tensor.data_size = tensor_info.size;
+
+    // Convert GGUF type to dtype string
+    weight_tensor.dtype = registry::gguf_type_to_mlx_dtype(tensor_info.type);
+
+    // Set quantization info if applicable
+    if (tensor_info.type >= registry::GGUFTensorType::Q4_0 &&
+        tensor_info.type <= registry::GGUFTensorType::Q8_K) {
+      weight_tensor.quant_type = registry::gguf_type_name(tensor_info.type);
+      weight_tensor.quant_block_size =
+          registry::gguf_block_size(tensor_info.type);
+    }
+
+    // Register tensor with loader
+    loader->register_tensor(weight_tensor);
+  }
+
+  std::cout << "[ModelLoader] All tensors registered successfully" << std::endl;
+
+  return true;
 }
 
 std::shared_ptr<graph::CachedLlamaModel> ModelLoader::create_cached_model(

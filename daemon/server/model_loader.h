@@ -155,6 +155,15 @@ class ModelLoader {
       std::shared_ptr<MMapWeightLoader> loader,
       const registry::ModelInfo& info);
 
+  /**
+   * @brief Load GGUF tensor metadata and register with weight loader
+   * @param loader Weight loader to register tensors with
+   * @param file_path Path to GGUF file
+   * @return true if successful, false otherwise
+   */
+  bool load_gguf_tensors(std::shared_ptr<MMapWeightLoader> loader,
+                         const std::string& file_path);
+
   std::shared_ptr<registry::ModelRegistry> registry_;
   std::string last_error_;
 };
