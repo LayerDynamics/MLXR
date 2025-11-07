@@ -1,0 +1,12 @@
+# Git LFS Configuration
+# Track large model files with Git LFS for efficient storage
+
+# Test models (downloaded from HuggingFace)
+test_models/**/*.safetensors filter=lfs diff=lfs merge=lfs -text
+test_models/**/*.gguf filter=lfs diff=lfs merge=lfs -text
+test_models/**/*.bin filter=lfs diff=lfs merge=lfs -text
+
+# Model metadata files are small, keep in regular git
+test_models/**/*.json text
+test_models/**/*.txt text
+test_models/**/*.md text

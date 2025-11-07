@@ -1,0 +1,115 @@
+name: Download Test Models
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: 'Model to download (all, tinyllama, tinyllama-gguf)'
+        required: false
+        default: 'all'
+      force:
+        description: 'Force re-download even if cached'
+        required: false
+        type: boolean
+        default: false
+  schedule:
+    # Run weekly on Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+jobs:
+  download-models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Git LFS
+        run: |
+          git lfs install
+          git lfs pull
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install huggingface-hub
+
+      - name: Download models
+        run: |
+          MODEL="${{ github.event.inputs.model || 'all' }}"
+          FORCE_FLAG=""
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            FORCE_FLAG="--force"
+          fi
+
+          python scripts/download_test_models.py --model "$MODEL" $FORCE_FLAG
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Track models with Git LFS
+        run: |
+          # Add all model files to LFS tracking
+          git lfs track "test_models/**/*.safetensors"
+          git lfs track "test_models/**/*.gguf"
+          git lfs track "test_models/**/*.bin"
+
+          # Add .gitattributes if changed
+          git add .gitattributes
+
+      - name: Commit models to LFS
+        run: |
+          # Add test_models directory
+          git add test_models/
+
+          # Check if there are changes to commit
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update test models (automated download)"
+            git push
+          fi
+
+      - name: Create artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-models-${{ github.run_id }}
+          path: test_models/
+          retention-days: 30
+          compression-level: 0  # Models are already compressed
+
+      - name: Generate summary
+        run: |
+          echo "## Model Download Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -d "test_models" ]; then
+            echo "### Downloaded Models" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            for model_dir in test_models/*/; do
+              model_name=$(basename "$model_dir")
+              if [ -f "$model_dir/manifest.json" ]; then
+                size=$(du -sh "$model_dir" | cut -f1)
+                echo "- **$model_name**: $size" >> $GITHUB_STEP_SUMMARY
+              fi
+            done
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Storage" >> $GITHUB_STEP_SUMMARY
+            echo "- Models stored in Git LFS" >> $GITHUB_STEP_SUMMARY
+            echo "- Artifact: test-models-${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Retention: 30 days" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ No models downloaded" >> $GITHUB_STEP_SUMMARY
+          fi
