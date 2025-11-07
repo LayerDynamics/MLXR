@@ -578,6 +578,11 @@ bool CachedLlamaModel::load_weights_from_dir(const std::string& dir_path) {
   return false;
 }
 
+bool CachedLlamaModel::load_from_weight_map(
+    const std::unordered_map<std::string, Tensor>& weights) {
+  return assign_weights(weights);
+}
+
 bool CachedLlamaModel::load_safetensors(const std::string& path) {
   try {
     std::cout << "Loading weights from safetensors format: " << path

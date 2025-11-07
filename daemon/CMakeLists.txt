@@ -74,6 +74,7 @@ set(DAEMON_SOURCES
     server/sse_stream.cpp
     server/ollama_api.cpp
     server/scheduler_worker.cpp
+    server/model_loader.cpp
 
     # Telemetry components
     telemetry/metrics.cpp

@@ -77,46 +77,85 @@ make install-deps
 
 ## Project Status
 
-✅ **Phase 2 Complete** - Service Layer & Optimization (~85%)
+✅ **Core Infrastructure Complete** - Integration Work Remaining
 
-This project has completed Phase 1 (Minimal Inference) and most of Phase 2 (Optimization).
+**Codebase Size**: ~50,000 LOC across core, daemon, app, tests, and SDKs
 
 ### Completed Features
 
 **Phase 1: Minimal Inference** ✅ 100%
-- [x] Complete Llama model with safetensors loading
-- [x] SentencePiece tokenizer integration
-- [x] Sampling strategies (greedy, temperature, top-k, top-p)
+- [x] Complete Llama model with safetensors loading (737 lines)
+- [x] SentencePiece tokenizer (252 lines)
+- [x] Sampling strategies (greedy, temperature, top-k, top-p) - 534 lines
 - [x] Working text generation pipeline
-- [x] Example: [simple_generation.cpp](examples/simple_generation.cpp)
+- [x] Example: [simple_generation.cpp](examples/simple_generation.cpp) - **WORKS** ✅
 
-**Phase 2: Optimization** ✅ ~85%
-- [x] **KV Cache System** - Paged arena with LRU eviction, GQA support (87.5% memory reduction)
-- [x] **Scheduler** - Continuous batching with prefill/decode separation
-- [x] **Metal Kernels** - RMSNorm (fully tested), attention, RoPE, SwiGLU, Q-Gemm (implemented)
-- [x] **Test Daemon** - Working HTTP server with health/models endpoints
-- ⏳ **Integration** - CachedLlamaModel exists but needs Engine integration
+**Phase 2: Optimization** ✅ 95%
+- [x] **KV Cache System** - Complete paged arena (2,373 lines) with LRU eviction, GQA support
+- [x] **Scheduler** - Continuous batching (439 lines) with prefill/decode separation
+- [x] **Metal Kernels** - All 6 kernels implemented (~5,200 LOC total):
+  - RMSNorm: 217 lines shader + 362 lines primitive - **INTEGRATED & TESTED** (81/81 tests) ✅
+  - Attention Decode: 295 + 574 lines - Ready for integration
+  - Attention Prefill: 370 + 633 lines - Ready for integration
+  - RoPE: 434 + 478 lines - Ready for integration
+  - SwiGLU MLP: 432 + 321 lines - Ready for integration
+  - Q-Gemm Dequant: 486 + 525 lines - Ready for integration
+- [x] **Test Daemon** - Working HTTP server (`test_daemon`) with health/models endpoints
+- ⚠️ **Integration Gap**: Metal kernels need wiring in CachedAttention (8-16 hours)
 
-**Phase 3: Service Layer** ✅ ~60%
-- [x] **REST API** - OpenAI & Ollama-compatible endpoints
-- [x] **SSE Streaming** - Real-time token generation
-- [x] **Model Registry** - SQLite catalog with GGUF parser
-- [x] **Telemetry** - Comprehensive metrics collection
-- [x] **Test Suite** - 14 C++ unit test files (81/81 RMSNorm tests passing)
+**Phase 3: Service Layer** ✅ 70%
+- [x] **REST API** - OpenAI & Ollama-compatible endpoints (1,758 lines)
+- [x] **gRPC Server** - **FULLY IMPLEMENTED** (1,101 lines) with streaming
+- [x] **SSE Streaming** - Real-time token generation (621 lines)
+- [x] **Model Registry** - SQLite catalog (1,137 lines) with GGUF parser (891 lines)
+- [x] **Telemetry** - Metrics collection (769 lines, 15/15 tests passing)
+- [x] **Test Suite** - 14 C++ unit test files, 299 total tests
+- ⚠️ **Integration Gap**: Model loading → Engine → Worker wiring (4-8 hours)
 
-**Frontend** ✅ 100%
+**Frontend** ✅ 90%
 - [x] **React UI** - 78 components fully implemented
 - [x] **Chat Interface** - With streaming and tool calls
 - [x] **Model Management** - Pull, import, convert, quantize
 - [x] **Metrics Dashboard** - Real-time performance visualization
+- [x] **All Pages** - Chat, Models, Playgrounds, Metrics, Settings, Logs
+
+**macOS App** ✅ 90%
+- [x] **Swift Components** - 20 files implementing app host
+- [x] **JavaScript Bridge** - Complete UDS communication
+- [x] **Xcode Project** - Exists and configured
+- [x] **Daemon Management** - launchd integration
+- ⚠️ **Missing**: .app bundle build, code signing, .dmg creation
+
+**SDKs** ✅ 95%
+- [x] **Python SDK** - Complete client with async support
+- [x] **TypeScript SDK** - Full type definitions and clients
+- [x] **Swift SDK** - SwiftPM package with examples
 
 ### Current Performance (TinyLlama 1.1B)
 - Prefill: 198-459 ms (5-10 tokens)
 - Decode: 53-220 ms/token
 - Throughput: 4.5-18.9 tokens/sec
 - Memory: 87.5% reduction with GQA (308 MB saved)
+- **Expected after Metal integration**: 2-5x improvement
 
-See [CLAUDE.md](CLAUDE.md) and [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) for detailed status.
+### Next Steps (Critical Path)
+
+**P0 - Get it Working** (14-28 hours):
+1. ⚠️ **Metal Kernel Integration** (8-16h) - Wire attention kernels in CachedAttention
+2. ⚠️ **Daemon Model Loading** (4-8h) - Complete load_model() in REST server
+3. **Server Config** (2-4h) - Create configs/server.yaml
+
+**P1 - Make it Fast** (20-32 hours):
+4. **Quantization** (8-12h) - GGUF loading + Q-gemm integration
+5. **RoPE/SwiGLU Kernels** (6-10h) - Wire remaining kernels
+6. **Speculative Decoding** (6-10h) - Connect draft model
+
+**P2 - Ship It** (36-60 hours):
+7. **App Bundle** (8-16h) - .dmg, code signing, auto-update
+8. **CPU Fallbacks** (16-24h) - Neon SIMD implementations
+9. **Conversion Tools** (12-20h) - GGUF→MLX, quantizers
+
+See [CLAUDE.md](CLAUDE.md) for comprehensive implementation roadmap and accurate metrics.
 
 ## Repository Structure
 

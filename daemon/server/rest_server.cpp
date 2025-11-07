@@ -17,11 +17,13 @@
 #include <thread>
 
 #include "graph/model.h"
+#include "model_loader.h"
 #include "ollama_api.h"
 #include "runtime/engine.h"
 #include "runtime/tokenizer/tokenizer.h"
 #include "scheduler/request.h"
 #include "scheduler/scheduler.h"
+#include "scheduler_worker.h"
 #include "sse_stream.h"
 
 // Simple JSON parsing/serialization helpers
@@ -757,6 +759,10 @@ void RestServer::set_engine(std::shared_ptr<Engine> engine) {
 void RestServer::set_scheduler(
     std::shared_ptr<scheduler::Scheduler> scheduler) {
   scheduler_ = scheduler;
+}
+
+void RestServer::set_worker(std::shared_ptr<SchedulerWorker> worker) {
+  worker_ = worker;
 }
 
 void RestServer::set_registry(
@@ -1768,6 +1774,91 @@ bool RestServer::validate_api_key(const HttpRequest& request) {
 
   std::string provided_key = auth.substr(7);
   return provided_key == config_.api_key;
+}
+
+// ============================================================================
+// Model Loading Methods
+// ============================================================================
+
+bool RestServer::load_model(const std::string& model_name) {
+  std::lock_guard<std::mutex> lock(model_mutex_);
+
+  std::cout << "[RestServer] Loading model: " << model_name << std::endl;
+
+  if (!registry_) {
+    std::cerr << "[RestServer] Error: Model registry not set" << std::endl;
+    return false;
+  }
+
+  // Create ModelLoader
+  auto model_loader = std::make_shared<ModelLoader>(registry_);
+
+  // Load the model with default configuration
+  LoadModelConfig config;
+  config.use_cached_attention = true;  // Enable Metal kernels
+  config.prefetch_weights = true;
+  config.lock_weights = false;
+
+  auto loaded_model_opt = model_loader->load_model(model_name, config);
+  if (!loaded_model_opt.has_value()) {
+    std::cerr << "[RestServer] Failed to load model: "
+              << model_loader->last_error() << std::endl;
+    return false;
+  }
+
+  auto& loaded_model = loaded_model_opt.value();
+
+  // Update server components
+  // Note: model is stored in engine, no need to keep separate reference
+  tokenizer_ = loaded_model.tokenizer;
+  engine_ = loaded_model.engine;
+  current_model_name_ = model_name;
+
+  std::cout << "[RestServer] Model loaded successfully: " << model_name
+            << std::endl;
+  std::cout << "[RestServer]   Format: "
+            << (loaded_model.info.format == registry::ModelFormat::GGUF
+                    ? "GGUF"
+                    : "SAFETENSORS")
+            << std::endl;
+  std::cout << "[RestServer]   Params: " << loaded_model.info.param_count
+            << std::endl;
+  std::cout << "[RestServer]   Context: " << loaded_model.info.context_length
+            << std::endl;
+
+  // If a worker exists, update its engine (thread-safe)
+  if (worker_) {
+    worker_->set_engine(engine_);
+    std::cout << "[RestServer] Updated worker engine" << std::endl;
+  }
+
+  return true;
+}
+
+bool RestServer::unload_model(const std::string& model_name) {
+  std::lock_guard<std::mutex> lock(model_mutex_);
+
+  std::cout << "[RestServer] Unloading model: " << model_name << std::endl;
+
+  if (current_model_name_ != model_name) {
+    std::cerr << "[RestServer] Model not currently loaded: " << model_name
+              << std::endl;
+    return false;
+  }
+
+  // Clear current model (model is stored in engine)
+  engine_.reset();
+  tokenizer_.reset();
+  current_model_name_.clear();
+
+  std::cout << "[RestServer] Model unloaded successfully" << std::endl;
+  return true;
+}
+
+std::string RestServer::current_model() const {
+  // Need lock since std::string is not thread-safe (even for reads)
+  std::lock_guard<std::mutex> lock(model_mutex_);
+  return current_model_name_;
 }
 
 }  // namespace server

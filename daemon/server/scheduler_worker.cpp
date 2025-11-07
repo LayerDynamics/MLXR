@@ -47,6 +47,12 @@ void SchedulerWorker::stop() {
   running_ = false;
 }
 
+void SchedulerWorker::set_engine(std::shared_ptr<runtime::Engine> engine) {
+  std::lock_guard<std::mutex> lock(engine_mutex_);
+  engine_ = engine;
+  std::cout << "[SchedulerWorker] Engine updated" << std::endl;
+}
+
 void SchedulerWorker::run_loop() {
   std::cout << "[SchedulerWorker] Worker thread started" << std::endl;
 
@@ -106,8 +112,17 @@ void SchedulerWorker::execute_prefill(scheduler::RequestPtr request) {
   request->mark_prefilling();
 
   try {
+    // Get engine (thread-safe)
+    // Note: We copy the shared_ptr under lock to ensure the engine stays alive
+    // for the duration of this operation, even if another thread calls set_engine()
+    std::shared_ptr<runtime::Engine> engine;
+    {
+      std::lock_guard<std::mutex> lock(engine_mutex_);
+      engine = engine_;
+    }
+
     // If no engine is available, skip inference (for testing)
-    if (!engine_) {
+    if (!engine) {
       request->mark_completed(scheduler::FinishReason::STOP);
       return;
     }
@@ -120,7 +135,7 @@ void SchedulerWorker::execute_prefill(scheduler::RequestPtr request) {
     }
 
     // Single forward pass for prefill - processes all prompt tokens
-    auto logits = engine_->forward_prefill(request->prompt_token_ids, cache);
+    auto logits = engine->forward_prefill(request->prompt_token_ids, cache);
 
     // Configure sampler with request parameters
     runtime::SamplerConfig sampler_config;
@@ -166,8 +181,17 @@ void SchedulerWorker::execute_prefill(scheduler::RequestPtr request) {
 
 void SchedulerWorker::execute_decode(scheduler::RequestPtr request) {
   try {
+    // Get engine (thread-safe)
+    // Note: We copy the shared_ptr under lock to ensure the engine stays alive
+    // for the duration of this operation, even if another thread calls set_engine()
+    std::shared_ptr<runtime::Engine> engine;
+    {
+      std::lock_guard<std::mutex> lock(engine_mutex_);
+      engine = engine_;
+    }
+
     // If no engine is available, skip inference (for testing)
-    if (!engine_) {
+    if (!engine) {
       request->mark_completed(scheduler::FinishReason::STOP);
       return;
     }
@@ -191,7 +215,7 @@ void SchedulerWorker::execute_decode(scheduler::RequestPtr request) {
     int last_token = request->generated_token_ids.back();
 
     // Single forward pass for decode - processes ONE token with existing cache
-    auto logits = engine_->forward_decode(last_token, cache);
+    auto logits = engine->forward_decode(last_token, cache);
 
     // Configure sampler
     runtime::SamplerConfig sampler_config;
