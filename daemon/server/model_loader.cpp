@@ -9,7 +9,7 @@
 #include "../../core/runtime/kv/arena.h"
 #include "../../core/runtime/kv/eviction.h"
 #include "../../core/runtime/kv/pager.h"
-#include "../../core/runtime/tokenizer/sentencepiece_tokenizer.h"
+#include "../../core/runtime/tokenizer/tokenizer.h"
 #include "../registry/gguf_parser.h"
 
 namespace mlxr {
