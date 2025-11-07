@@ -250,6 +250,13 @@ struct ServerConfig {
   std::string api_key;  // Optional API key for authentication
   bool enable_metrics = true;
   std::string log_level = "info";
+
+  // Connection timeout settings
+  int read_timeout_sec = 30;        // Read timeout in seconds (default: 30s)
+  int write_timeout_sec = 30;       // Write timeout in seconds (default: 30s)
+  int keep_alive_max_count = 100;   // Max requests per connection (default: 100)
+  int keep_alive_timeout_sec = 5;   // Keep-alive timeout in seconds (default: 5s)
+  size_t payload_max_length = 100 * 1024 * 1024;  // Max payload size (default: 100MB)
 };
 
 // ==============================================================================
