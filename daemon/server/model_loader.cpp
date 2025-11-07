@@ -221,8 +221,9 @@ std::shared_ptr<graph::CachedLlamaModel> ModelLoader::load_model_from_gguf_mmap(
       return nullptr;
     }
 
-    // Convert dtype string to MLX dtype
-    mlx::core::Dtype mlx_dtype;
+    // Determine MLX dtype and handle quantized types
+    mlx::core::Dtype mlx_dtype = mlx::core::float32;  // Default
+
     if (tensor_info.dtype == "float16") {
       mlx_dtype = mlx::core::float16;
     } else if (tensor_info.dtype == "float32") {
@@ -233,7 +234,7 @@ std::shared_ptr<graph::CachedLlamaModel> ModelLoader::load_model_from_gguf_mmap(
       mlx_dtype = mlx::core::int64;
     } else {
       // Quantized types need dequantization
-      // For MVP: just log warning and use float16
+      // For MVP: just log warning and skip
       std::cerr << "[ModelLoader] Warning: Quantized dtype " << tensor_info.dtype
                 << " for " << tensor_name
                 << " - dequantization not yet implemented, skipping"
@@ -242,20 +243,49 @@ std::shared_ptr<graph::CachedLlamaModel> ModelLoader::load_model_from_gguf_mmap(
       continue;
     }
 
-    // Convert shape vector<int64_t> to vector<int>
-    std::vector<int> mlx_shape;
-    mlx_shape.reserve(tensor_info.shape.size());
+    // Convert shape vector<int64_t> to Shape
+    std::vector<int> shape_vec;
+    shape_vec.reserve(tensor_info.shape.size());
     for (auto dim : tensor_info.shape) {
-      mlx_shape.push_back(static_cast<int>(dim));
+      shape_vec.push_back(static_cast<int>(dim));
+    }
+    auto mlx_shape = graph::to_shape(shape_vec);
+
+    // Calculate total elements
+    size_t total_elements = 1;
+    for (auto dim : shape_vec) {
+      total_elements *= dim;
     }
 
     // Create MLX array by COPYING from mmap'd memory
     // This is safer and ensures model works even if loader is destroyed
-    auto arr = mlx::core::array(
-        region.data,  // Source data pointer
-        mlx_shape,    // Shape
-        mlx_dtype     // Dtype
-    );
+    mlx::core::array arr;
+
+    if (mlx_dtype == mlx::core::float32) {
+      // Copy float32 data
+      std::vector<float> data_vec(static_cast<const float*>(region.data),
+                                  static_cast<const float*>(region.data) + total_elements);
+      arr = mlx::core::array(data_vec.data(), mlx_shape, mlx_dtype);
+    } else if (mlx_dtype == mlx::core::float16) {
+      // For float16, we need to copy the raw bytes
+      // MLX expects fp16 data as uint16_t
+      std::vector<uint16_t> data_vec(static_cast<const uint16_t*>(region.data),
+                                     static_cast<const uint16_t*>(region.data) + total_elements);
+      arr = mlx::core::array(data_vec.data(), mlx_shape, mlx_dtype);
+    } else if (mlx_dtype == mlx::core::int32) {
+      std::vector<int32_t> data_vec(static_cast<const int32_t*>(region.data),
+                                    static_cast<const int32_t*>(region.data) + total_elements);
+      arr = mlx::core::array(data_vec.data(), mlx_shape, mlx_dtype);
+    } else if (mlx_dtype == mlx::core::int64) {
+      std::vector<int64_t> data_vec(static_cast<const int64_t*>(region.data),
+                                    static_cast<const int64_t*>(region.data) + total_elements);
+      arr = mlx::core::array(data_vec.data(), mlx_shape, mlx_dtype);
+    } else {
+      std::cerr << "[ModelLoader] Warning: Unsupported dtype for " << tensor_name
+                << ", skipping" << std::endl;
+      skipped++;
+      continue;
+    }
 
     // Force evaluation to trigger the copy
     mlx::core::eval(arr);
