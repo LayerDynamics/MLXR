@@ -58,7 +58,16 @@ option(BUILD_TESTS "Build test suite" ON)
 option(BUILD_DAEMON "Build daemon executable" ON)
 option(BUILD_TOOLS "Build conversion and utility tools" ON)
 option(BUILD_EXAMPLES "Build example programs" ON)
+option(USE_CUSTOM_KERNELS "Enable custom Metal kernels for attention/RoPE/MLP" ON)
 option(ENABLE_METAL_VALIDATION "Enable Metal API validation (slower, for debugging)" OFF)
+
+# Add USE_CUSTOM_KERNELS definition if enabled
+if(USE_CUSTOM_KERNELS)
+    add_compile_definitions(USE_CUSTOM_KERNELS)
+    message(STATUS "Custom Metal kernels: ENABLED")
+else()
+    message(STATUS "Custom Metal kernels: DISABLED (using MLX fallback)")
+endif()
 
 # Subdirectories
 add_subdirectory(core)
@@ -99,5 +108,6 @@ message(STATUS "  Build tests:          ${BUILD_TESTS}")
 message(STATUS "  Build daemon:         ${BUILD_DAEMON}")
 message(STATUS "  Build tools:          ${BUILD_TOOLS}")
 message(STATUS "  Build examples:       ${BUILD_EXAMPLES}")
+message(STATUS "  Custom Metal kernels: ${USE_CUSTOM_KERNELS}")
 message(STATUS "  Metal validation:     ${ENABLE_METAL_VALIDATION}")
 message(STATUS "")
