@@ -665,7 +665,7 @@ void GrpcServiceImpl::ConvertModelInfo(const registry::ModelInfo& src,
         case registry::ModelFormat::SAFETENSORS:
             dst->set_format(mlxrunner::v1::MODEL_FORMAT_SAFETENSORS);
             break;
-        case registry::ModelFormat::MLX:
+        case registry::ModelFormat::MLX_NATIVE:
             dst->set_format(mlxrunner::v1::MODEL_FORMAT_MLX);
             break;
         default:
