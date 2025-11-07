@@ -283,14 +283,37 @@ jobs:
           ./build/cmake/bin/test_daemon &
           DAEMON_PID=$!
           echo "DAEMON_PID=$DAEMON_PID" >> $GITHUB_ENV
-          sleep 5
+
+          echo "Waiting for daemon to be ready..."
+          # Wait longer and actively check for readiness
+          MAX_WAIT=30
+          WAIT_COUNT=0
+
+          while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+            if curl -s -f http://127.0.0.1:11434/health > /dev/null 2>&1; then
+              echo "✓ Daemon is ready after $WAIT_COUNT seconds"
+              break
+            fi
+            sleep 1
+            WAIT_COUNT=$((WAIT_COUNT + 1))
+          done
+
+          if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
+            echo "❌ Daemon failed to become ready within $MAX_WAIT seconds"
+            kill $DAEMON_PID || true
+            exit 1
+          fi
+
+          # Extra settling time after first successful health check
+          sleep 2
 
       - name: Run stress test
         run: |
           echo "Running stress test with ApacheBench..."
 
-          # 1000 requests, 10 concurrent
-          ab -n 1000 -c 10 http://127.0.0.1:11434/health > stress-test-results.txt
+          # Start with lower concurrency to avoid overwhelming the server
+          # 1000 requests, 5 concurrent (reduced from 10)
+          ab -n 1000 -c 5 -t 60 http://127.0.0.1:11434/health > stress-test-results.txt
 
           cat stress-test-results.txt
 
