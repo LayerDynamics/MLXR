@@ -12,6 +12,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Minimal permissions following principle of least privilege
+permissions:
+  contents: read
+
 jobs:
   # ============================================================================
   # Metal Kernel Compilation
