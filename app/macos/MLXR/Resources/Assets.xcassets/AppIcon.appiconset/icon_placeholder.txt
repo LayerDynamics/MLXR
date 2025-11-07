@@ -1,0 +1,8 @@
+For production builds, you need to add a proper 1024x1024 PNG icon.
+You can:
+1. Design an icon in Sketch, Figma, or other design tool
+2. Export as icon_1024x1024.png
+3. Place in: app/macos/MLXR/Resources/Assets.xcassets/AppIcon.appiconset/
+4. Xcode will automatically generate all required sizes
+
+For now, the build will use the default Xcode app icon.

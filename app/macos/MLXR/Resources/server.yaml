@@ -1,0 +1,145 @@
+# MLXR Server Configuration
+# This is the default configuration bundled with the app
+# User configuration is stored at ~/Library/Application Support/MLXRunner/server.yaml
+
+# Daemon Settings
+# ================
+
+# Unix Domain Socket path (primary interface)
+uds_path: "~/Library/Application Support/MLXRunner/run/mlxrunner.sock"
+
+# HTTP port (0 = disabled, use UDS only)
+# Change to 8080 or 11434 to enable HTTP server
+http_port: 0
+
+# Bind address for HTTP server (if enabled)
+http_host: "127.0.0.1"
+
+
+# Performance Settings
+# ====================
+
+# Maximum number of tokens to batch together
+# Higher = better throughput, lower = better latency
+max_batch_tokens: 2048
+
+# Target latency per token (milliseconds)
+# Scheduler will adjust batch size to meet this target
+target_latency_ms: 80
+
+# Enable chunked prefill (split long prompts into chunks)
+enable_chunked_prefill: true
+
+# Prefill chunk size (tokens)
+prefill_chunk_size: 512
+
+
+# KV Cache Settings
+# =================
+
+# Size of each KV cache block (tokens)
+# Must match Metal kernel configuration
+kv_block_size: 32
+
+# Maximum number of KV cache blocks
+# Total KV cache memory = kv_max_blocks * kv_block_size * model_dim * 2 * sizeof(fp16)
+kv_max_blocks: 4096
+
+# Enable KV cache persistence (save/restore across sessions)
+kv_persistence: true
+
+# KV cache directory
+kv_cache_dir: "~/Library/Application Support/MLXRunner/cache/kv"
+
+
+# Speculative Decoding
+# ====================
+
+# Enable speculative decoding (draft model proposes, main model verifies)
+enable_speculative: true
+
+# Draft model path (empty = auto-select smaller model)
+draft_model: ""
+
+# Number of tokens to speculatively decode
+speculation_length: 4
+
+# Minimum acceptance rate to keep speculation enabled
+min_acceptance_rate: 0.5
+
+
+# Model Management
+# ================
+
+# Model storage directory
+models_dir: "~/Library/Application Support/MLXRunner/models"
+
+# Model cache directory (converted/quantized models)
+model_cache_dir: "~/Library/Application Support/MLXRunner/cache/models"
+
+# Default model format preference (mlx > safetensors > gguf)
+# Options: auto, mlx, safetensors, gguf
+model_format: auto
+
+# Default quantization for GGUF models
+# Options: q4_k, q5_k, q6_k, q8_0, fp16
+default_quantization: q4_k
+
+
+# Logging & Telemetry
+# ===================
+
+# Log level (trace, debug, info, warn, error)
+log_level: info
+
+# Log directory
+log_dir: "~/Library/Logs"
+
+# Enable metrics collection
+enable_metrics: true
+
+# Metrics export format (prometheus, json)
+metrics_format: json
+
+# Enable telemetry (anonymous usage statistics)
+# Set to false to disable all telemetry
+enable_telemetry: false
+
+
+# Security
+# ========
+
+# Enable API key authentication
+# If enabled, clients must provide an API key
+require_api_key: false
+
+# API key (if empty, a random key is generated on first run)
+# Stored securely in macOS Keychain
+api_key: ""
+
+# Enable CORS (for web clients)
+enable_cors: true
+
+# Allowed CORS origins (empty = allow all)
+cors_origins: []
+
+
+# Advanced Settings
+# =================
+
+# Number of worker threads (0 = auto-detect)
+num_workers: 0
+
+# Metal device index (0 = default GPU)
+metal_device: 0
+
+# Enable Metal shader debugging
+metal_debug: false
+
+# ANE (Apple Neural Engine) usage
+# Options: auto, disabled, prefer
+ane_mode: auto
+
+# Memory warning threshold (MB)
+# Daemon will emit warnings if available memory drops below this
+memory_warning_threshold: 2048
