@@ -55,6 +55,13 @@ class SchedulerWorker {
    */
   bool is_running() const { return running_; }
 
+  /**
+   * @brief Update the inference engine
+   * Thread-safe method to replace the engine
+   * @param engine New engine to use
+   */
+  void set_engine(std::shared_ptr<runtime::Engine> engine);
+
  private:
   /**
    * @brief Main worker loop
@@ -86,6 +93,7 @@ class SchedulerWorker {
   // Dependencies
   std::shared_ptr<scheduler::Scheduler> scheduler_;
   std::shared_ptr<runtime::Engine> engine_;
+  std::mutex engine_mutex_;  // Protect engine access
 
   // Worker thread
   std::thread worker_thread_;

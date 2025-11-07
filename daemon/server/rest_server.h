@@ -33,8 +33,9 @@ using runtime::Tokenizer;
 
 namespace server {
 
-// Forward declaration
+// Forward declarations
 class OllamaAPIHandler;
+class SchedulerWorker;
 
 // ==============================================================================
 // Request/Response Data Structures
@@ -288,6 +289,7 @@ class RestServer {
   void set_engine(std::shared_ptr<Engine> engine);
   void set_scheduler(std::shared_ptr<scheduler::Scheduler> scheduler);
   void set_registry(std::shared_ptr<registry::ModelRegistry> registry);
+  void set_worker(std::shared_ptr<SchedulerWorker> worker);
 
   // Model loading and management
   /**
@@ -330,6 +332,7 @@ class RestServer {
   std::shared_ptr<Engine> engine_;
   std::shared_ptr<scheduler::Scheduler> scheduler_;
   std::shared_ptr<registry::ModelRegistry> registry_;
+  std::shared_ptr<SchedulerWorker> worker_;
 
   // Model loading and management
   std::string current_model_name_;
