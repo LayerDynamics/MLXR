@@ -86,6 +86,14 @@ jobs:
         # Use security-extended queries for comprehensive coverage
         queries: security-extended
 
+    # Fix trap cache directory structure for C++
+    - name: Create trap cache directories
+      if: matrix.language == 'c-cpp'
+      run: |
+        # Create trap cache directory structure to prevent filesystem errors
+        mkdir -p /home/runner/work/_temp/trapCaches/cpp/tarballs
+        echo "✓ Created trap cache directory structure"
+
     # Manual build for C++ (required due to macOS-specific dependencies)
     - name: Build C++ code for CodeQL analysis
       if: matrix.language == 'c-cpp'
