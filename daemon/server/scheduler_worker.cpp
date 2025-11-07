@@ -113,6 +113,8 @@ void SchedulerWorker::execute_prefill(scheduler::RequestPtr request) {
 
   try {
     // Get engine (thread-safe)
+    // Note: We copy the shared_ptr under lock to ensure the engine stays alive
+    // for the duration of this operation, even if another thread calls set_engine()
     std::shared_ptr<runtime::Engine> engine;
     {
       std::lock_guard<std::mutex> lock(engine_mutex_);
@@ -180,6 +182,8 @@ void SchedulerWorker::execute_prefill(scheduler::RequestPtr request) {
 void SchedulerWorker::execute_decode(scheduler::RequestPtr request) {
   try {
     // Get engine (thread-safe)
+    // Note: We copy the shared_ptr under lock to ensure the engine stays alive
+    // for the duration of this operation, even if another thread calls set_engine()
     std::shared_ptr<runtime::Engine> engine;
     {
       std::lock_guard<std::mutex> lock(engine_mutex_);

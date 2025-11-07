@@ -58,7 +58,7 @@ std::optional<LoadedModel> ModelLoader::load_model(
   return std::nullopt;
 }
 
-std::string ModelLoader::last_error() const { return last_error_; }
+// Note: last_error() is implemented inline in the header
 
 }  // namespace server
 }  // namespace mlxr

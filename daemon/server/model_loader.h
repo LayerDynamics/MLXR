@@ -65,6 +65,22 @@ struct LoadModelConfig {
 /**
  * @brief Utility for loading models from registry
  *
+ * **IMPORTANT: Current implementation is a compilation stub.**
+ *
+ * This class provides the interface for model loading but the actual
+ * implementation (load_model) is not yet complete. It will:
+ * - Successfully query the model registry
+ * - Log found model information
+ * - Return nullopt with "not yet fully implemented" error
+ *
+ * Full implementation requires proper API integration for:
+ * - Tokenizer loading (SentencePieceTokenizer constructor)
+ * - Arena/Pager creation with correct signatures
+ * - Weight loading from GGUF/safetensors
+ * - CachedLlamaModel instantiation with correct ModelConfig
+ *
+ * See docs/SESSION_2025_11_07_MODEL_LOADING.md for implementation plan.
+ *
  * Handles the complete model loading pipeline:
  * 1. Query model metadata from registry
  * 2. Load weights via mmap

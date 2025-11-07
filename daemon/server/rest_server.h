@@ -336,7 +336,7 @@ class RestServer {
 
   // Model loading and management
   std::string current_model_name_;
-  std::mutex model_mutex_;  // Protect model loading/unloading
+  mutable std::mutex model_mutex_;  // Protect model loading/unloading (mutable for const methods)
 
   // API handlers
   std::unique_ptr<OllamaAPIHandler> ollama_handler_;

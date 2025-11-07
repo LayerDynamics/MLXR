@@ -1840,7 +1840,8 @@ bool RestServer::unload_model(const std::string& model_name) {
 }
 
 std::string RestServer::current_model() const {
-  // No lock needed for read-only access to atomic string
+  // Need lock since std::string is not thread-safe (even for reads)
+  std::lock_guard<std::mutex> lock(model_mutex_);
   return current_model_name_;
 }
 
