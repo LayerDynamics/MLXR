@@ -5,6 +5,7 @@
 
 #include <filesystem>
 #include <iostream>
+#include <optional>
 
 #include "../../core/graph/attention_cached.h"
 #include "../../core/graph/model.h"
@@ -259,27 +260,27 @@ std::shared_ptr<graph::CachedLlamaModel> ModelLoader::load_model_from_gguf_mmap(
 
     // Create MLX array by COPYING from mmap'd memory
     // This is safer and ensures model works even if loader is destroyed
-    mlx::core::array arr;
+    std::optional<mlx::core::array> arr_opt;
 
     if (mlx_dtype == mlx::core::float32) {
       // Copy float32 data
       std::vector<float> data_vec(static_cast<const float*>(region.data),
                                   static_cast<const float*>(region.data) + total_elements);
-      arr = mlx::core::array(data_vec.data(), mlx_shape, mlx_dtype);
+      arr_opt = mlx::core::array(data_vec.data(), mlx_shape, mlx_dtype);
     } else if (mlx_dtype == mlx::core::float16) {
       // For float16, we need to copy the raw bytes
       // MLX expects fp16 data as uint16_t
       std::vector<uint16_t> data_vec(static_cast<const uint16_t*>(region.data),
                                      static_cast<const uint16_t*>(region.data) + total_elements);
-      arr = mlx::core::array(data_vec.data(), mlx_shape, mlx_dtype);
+      arr_opt = mlx::core::array(data_vec.data(), mlx_shape, mlx_dtype);
     } else if (mlx_dtype == mlx::core::int32) {
       std::vector<int32_t> data_vec(static_cast<const int32_t*>(region.data),
                                     static_cast<const int32_t*>(region.data) + total_elements);
-      arr = mlx::core::array(data_vec.data(), mlx_shape, mlx_dtype);
+      arr_opt = mlx::core::array(data_vec.data(), mlx_shape, mlx_dtype);
     } else if (mlx_dtype == mlx::core::int64) {
       std::vector<int64_t> data_vec(static_cast<const int64_t*>(region.data),
                                     static_cast<const int64_t*>(region.data) + total_elements);
-      arr = mlx::core::array(data_vec.data(), mlx_shape, mlx_dtype);
+      arr_opt = mlx::core::array(data_vec.data(), mlx_shape, mlx_dtype);
     } else {
       std::cerr << "[ModelLoader] Warning: Unsupported dtype for " << tensor_name
                 << ", skipping" << std::endl;
@@ -288,10 +289,10 @@ std::shared_ptr<graph::CachedLlamaModel> ModelLoader::load_model_from_gguf_mmap(
     }
 
     // Force evaluation to trigger the copy
-    mlx::core::eval(arr);
+    mlx::core::eval(arr_opt.value());
 
     // Store in weight map
-    weight_map[tensor_name] = graph::Tensor(arr);
+    weight_map[tensor_name] = graph::Tensor(arr_opt.value());
     loaded++;
 
     if (loaded % 50 == 0) {
