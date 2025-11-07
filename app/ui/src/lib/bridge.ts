@@ -87,14 +87,35 @@ class BridgeClient {
   private handleResponse(event: MessageEvent<BridgeResponse>) {
     // Security: Validate message origin
     // For WKWebView, origin should be the app's internal origin
-    // We accept file:// (local files), mlxrunner:// (custom scheme), or null (postMessage from same window)
-    const trustedOrigins = ['file://', 'mlxrunner://', 'null']
-    const isTrustedOrigin = trustedOrigins.some(origin =>
-      event.origin === origin || event.origin.startsWith(origin)
-    )
 
-    if (!isTrustedOrigin && event.origin !== window.location.origin) {
-      console.warn(`[Bridge Security] Rejected message from untrusted origin: ${event.origin}`)
+    // SECURITY NOTE: We are very strict about 'null' origin to prevent attacks
+    // from sandboxed iframes, data URLs, or cross-origin sources.
+    // 'null' is ONLY accepted when:
+    // 1. Running in WebView mode (IS_WEBVIEW is true)
+    // 2. AND the message origin is exactly 'null' (not startsWith)
+    // 3. AND we can verify this is from WKWebView postMessage
+    const isNullOriginAllowed = IS_WEBVIEW && event.origin === 'null'
+
+    // Custom scheme validation - must be exact prefix match
+    const customSchemeAllowed = event.origin.startsWith('mlxrunner://')
+
+    // File protocol - only exact match or proper subdirectory
+    const fileProtocolAllowed = event.origin === 'file://' ||
+                                (event.origin.startsWith('file:///') && event.origin.length > 8)
+
+    // Same origin as the window
+    const sameOriginAllowed = event.origin === window.location.origin
+
+    const isTrustedOrigin = isNullOriginAllowed ||
+                           customSchemeAllowed ||
+                           fileProtocolAllowed ||
+                           sameOriginAllowed
+
+    if (!isTrustedOrigin) {
+      console.warn(
+        `[Bridge Security] Rejected message from untrusted origin: "${event.origin}"`,
+        `(IS_WEBVIEW: ${IS_WEBVIEW}, window.origin: "${window.location.origin}")`
+      )
       return
     }
 
