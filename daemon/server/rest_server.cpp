@@ -1754,5 +1754,66 @@ bool RestServer::validate_api_key(const HttpRequest& request) {
   return provided_key == config_.api_key;
 }
 
+// ============================================================================
+// Model Loading Methods
+// ============================================================================
+
+bool RestServer::load_model(const std::string& model_name) {
+  std::lock_guard<std::mutex> lock(model_mutex_);
+
+  std::cout << "[RestServer] Loading model: " << model_name << std::endl;
+
+  if (!registry_) {
+    std::cerr << "[RestServer] Error: Model registry not set" << std::endl;
+    return false;
+  }
+
+  // TODO: Create ModelLoader and load the model
+  // This requires:
+  // 1. Create ModelLoader with registry
+  // 2. Load model using ModelLoader::load_model()
+  // 3. Update engine_ and tokenizer_ with loaded components
+  // 4. If scheduler_ exists, update its worker with new engine
+  // 5. Update current_model_name_
+  //
+  // For now, this is a placeholder that establishes the interface
+
+  std::cerr
+      << "[RestServer] Model loading not yet fully implemented (placeholder)"
+      << std::endl;
+  std::cerr
+      << "[RestServer] TODO: Integrate ModelLoader and wire to SchedulerWorker"
+      << std::endl;
+
+  // Placeholder return
+  return false;
+}
+
+bool RestServer::unload_model(const std::string& model_name) {
+  std::lock_guard<std::mutex> lock(model_mutex_);
+
+  std::cout << "[RestServer] Unloading model: " << model_name << std::endl;
+
+  if (current_model_name_ != model_name) {
+    std::cerr << "[RestServer] Model not currently loaded: " << model_name
+              << std::endl;
+    return false;
+  }
+
+  // Clear current model
+  engine_.reset();
+  tokenizer_.reset();
+  model_.reset();
+  current_model_name_.clear();
+
+  std::cout << "[RestServer] Model unloaded successfully" << std::endl;
+  return true;
+}
+
+std::string RestServer::current_model() const {
+  // No lock needed for read-only access to atomic string
+  return current_model_name_;
+}
+
 }  // namespace server
 }  // namespace mlxr

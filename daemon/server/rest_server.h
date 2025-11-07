@@ -282,12 +282,32 @@ class RestServer {
   // Get server configuration
   const ServerConfig& config() const { return config_; }
 
-  // Set model and inference engine
+  // Set model and inference engine (legacy - use load_model instead)
   void set_model(std::shared_ptr<LlamaModel> model);
   void set_tokenizer(std::shared_ptr<Tokenizer> tokenizer);
   void set_engine(std::shared_ptr<Engine> engine);
   void set_scheduler(std::shared_ptr<scheduler::Scheduler> scheduler);
   void set_registry(std::shared_ptr<registry::ModelRegistry> registry);
+
+  // Model loading and management
+  /**
+   * @brief Load a model by name
+   * @param model_name Model name or ID from registry
+   * @return true if model loaded successfully
+   */
+  bool load_model(const std::string& model_name);
+
+  /**
+   * @brief Unload a model
+   * @param model_name Model name to unload
+   * @return true if model unloaded successfully
+   */
+  bool unload_model(const std::string& model_name);
+
+  /**
+   * @brief Get currently loaded model name
+   */
+  std::string current_model() const;
 
   // Endpoint handlers (can be overridden for custom behavior)
   virtual HttpResponse handle_chat_completion(const HttpRequest& request);
@@ -304,12 +324,16 @@ class RestServer {
   bool running_;
   bool initialized_;
 
-  // Model and inference components
+  // Model and inference components (legacy)
   std::shared_ptr<LlamaModel> model_;
   std::shared_ptr<Tokenizer> tokenizer_;
   std::shared_ptr<Engine> engine_;
   std::shared_ptr<scheduler::Scheduler> scheduler_;
   std::shared_ptr<registry::ModelRegistry> registry_;
+
+  // Model loading and management
+  std::string current_model_name_;
+  std::mutex model_mutex_;  // Protect model loading/unloading
 
   // API handlers
   std::unique_ptr<OllamaAPIHandler> ollama_handler_;
