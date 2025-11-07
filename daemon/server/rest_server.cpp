@@ -16,6 +16,11 @@
 #include <sstream>
 #include <thread>
 
+// Socket headers for advanced configuration
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+
 #include "graph/model.h"
 #include "model_loader.h"
 #include "ollama_api.h"
@@ -235,6 +240,25 @@ struct RestServer::Impl {
       return new httplib::ThreadPool(server->config_.thread_pool_size);
     };
 
+    // Set socket options for better connection handling
+    http_server->set_socket_options([](socket_t sock) {
+      // Enable SO_REUSEADDR to allow quick restart
+      int yes = 1;
+      setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
+                 reinterpret_cast<const char*>(&yes), sizeof(yes));
+
+      // Set TCP_NODELAY to disable Nagle's algorithm for lower latency
+      setsockopt(sock, IPPROTO_TCP, TCP_NODELAY,
+                 reinterpret_cast<const char*>(&yes), sizeof(yes));
+
+      // Set socket send/receive buffer sizes
+      int buffer_size = 256 * 1024; // 256KB
+      setsockopt(sock, SOL_SOCKET, SO_SNDBUF,
+                 reinterpret_cast<const char*>(&buffer_size), sizeof(buffer_size));
+      setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
+                 reinterpret_cast<const char*>(&buffer_size), sizeof(buffer_size));
+    });
+
     // Set connection timeouts using configurable values
     http_server->set_read_timeout(server->config_.read_timeout_sec, 0);
     http_server->set_write_timeout(server->config_.write_timeout_sec, 0);
@@ -254,6 +278,44 @@ struct RestServer::Impl {
           {"Access-Control-Allow-Headers", "Content-Type, Authorization"},
       });
     }
+
+    // Set up error handler for server errors
+    http_server->set_error_handler([](const httplib::Request& req,
+                                       httplib::Response& res) {
+      std::cerr << "[HTTP ERROR] " << res.status << " for " << req.method
+                << " " << req.path << std::endl;
+
+      std::string error_msg = "{\"error\":\"Internal server error\",\"status\":" +
+                              std::to_string(res.status) + "}";
+      res.set_content(error_msg, "application/json");
+    });
+
+    // Set up exception handler to catch unhandled exceptions
+    http_server->set_exception_handler([](const httplib::Request& req,
+                                           httplib::Response& res,
+                                           std::exception_ptr ep) {
+      std::string error_msg = "Unknown exception";
+      try {
+        std::rethrow_exception(ep);
+      } catch (std::exception& e) {
+        error_msg = e.what();
+      } catch (...) {
+        error_msg = "Unknown exception type";
+      }
+
+      std::cerr << "[HTTP EXCEPTION] " << req.method << " " << req.path
+                << " - " << error_msg << std::endl;
+
+      res.status = 500;
+      res.set_content("{\"error\":\"" + error_msg + "\"}", "application/json");
+    });
+
+    // Set up logger for request/response tracking
+    http_server->set_logger([](const httplib::Request& req,
+                                const httplib::Response& res) {
+      std::cout << "[HTTP] " << req.method << " " << req.path
+                << " - " << res.status << std::endl;
+    });
 
     // Register route handlers
     register_routes(server);
