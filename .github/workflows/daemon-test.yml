@@ -15,6 +15,10 @@ on:
       - 'core/runtime/**'
   workflow_dispatch:
 
+# Minimal permissions following principle of least privilege
+permissions:
+  contents: read
+
 jobs:
   # ============================================================================
   # Build Daemon Binary

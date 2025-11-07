@@ -11,6 +11,10 @@ on:
         required: true
         default: '0.1.0'
 
+# Release workflow needs write permissions to create releases and upload assets
+permissions:
+  contents: write
+
 env:
   APP_NAME: MLXR
   SIGNING_IDENTITY: "-"  # Use ad-hoc signing for now

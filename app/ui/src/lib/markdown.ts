@@ -17,6 +17,12 @@ import DOMPurify from 'dompurify'
 const HEADING_PATTERN = /^(#{1,6})\s+([^\r\n]+)$/m
 
 /**
+ * Maximum input length for regex operations (CWE-1333 mitigation)
+ * Prevents ReDoS attacks by limiting input size
+ */
+const MAX_INPUT_LENGTH = 1_000_000 // 1MB of text
+
+/**
  * Create a new heading regex with global flag for iteration
  * Returns a fresh regex instance to avoid lastIndex state issues
  */
@@ -101,12 +107,18 @@ export function markdownToPlainText(markdown: string): string {
  * Extract code blocks from markdown
  * @param markdown - Markdown string
  * @returns Array of code blocks with language and content
+ * @throws {Error} If input exceeds MAX_INPUT_LENGTH
  */
 export function extractCodeBlocks(markdown: string): Array<{
   language: string
   code: string
   index: number
 }> {
+  // Input length validation (CWE-1333 defense-in-depth)
+  if (markdown.length > MAX_INPUT_LENGTH) {
+    throw new Error(`Input too long: ${markdown.length} > ${MAX_INPUT_LENGTH}`)
+  }
+
   const codeBlockRegex = /```(\w*)\n([\s\S]*?)```/g
   const blocks: Array<{ language: string; code: string; index: number }> = []
   let match: RegExpExecArray | null
@@ -126,9 +138,16 @@ export function extractCodeBlocks(markdown: string): Array<{
  * Extract inline code from markdown
  * @param markdown - Markdown string
  * @returns Array of inline code snippets
+ * @throws {Error} If input exceeds MAX_INPUT_LENGTH
  */
 export function extractInlineCode(markdown: string): string[] {
-  const inlineCodeRegex = /`([^`]+)`/g
+  // Input length validation (CWE-1333 defense-in-depth)
+  if (markdown.length > MAX_INPUT_LENGTH) {
+    throw new Error(`Input too long: ${markdown.length} > ${MAX_INPUT_LENGTH}`)
+  }
+
+  // Bounded quantifier prevents ReDoS
+  const inlineCodeRegex = /`([^`]{1,500})`/g
   const codes: string[] = []
   let match: RegExpExecArray | null
 
@@ -143,17 +162,24 @@ export function extractInlineCode(markdown: string): string[] {
  * Extract links from markdown
  * @param markdown - Markdown string
  * @returns Array of links with text and URL
+ * @throws {Error} If input exceeds MAX_INPUT_LENGTH
  */
 export function extractLinks(markdown: string): Array<{
   text: string
   url: string
   title?: string
 }> {
+  // Input length validation (CWE-1333 defense-in-depth)
+  if (markdown.length > MAX_INPUT_LENGTH) {
+    throw new Error(`Input too long: ${markdown.length} > ${MAX_INPUT_LENGTH}`)
+  }
+
   // Fixed ReDoS vulnerability (CWE-1333):
-  // - [^\]]+     → [^\[\]]+   (exclude both brackets, prevents nested bracket backtracking)
-  // - [^)]+?    → [^\s)]+    (URLs are non-whitespace, more deterministic)
-  // - [^"]+     → [^"]*      (allow empty titles)
-  const linkRegex = /\[([^\[\]]+)\]\(([^\s)]+)(?:\s+"([^"]*)")?\)/g
+  // - [^\]]+     → [^\[\]]{1,500}   (exclude both brackets, limit length, prevents backtracking)
+  // - [^)]+?    → [^\s)]{1,2000}   (URLs are non-whitespace, bounded length)
+  // - [^"]+     → [^"]{0,200}      (bounded title length)
+  // Bounded quantifiers prevent catastrophic backtracking on malicious input
+  const linkRegex = /\[([^\[\]]{1,500})\]\(([^\s)]{1,2000})(?:\s+"([^"]{0,200})")?\)/g
   const links: Array<{ text: string; url: string; title?: string }> = []
   let match: RegExpExecArray | null
 
@@ -172,17 +198,24 @@ export function extractLinks(markdown: string): Array<{
  * Extract images from markdown
  * @param markdown - Markdown string
  * @returns Array of images with alt text and URL
+ * @throws {Error} If input exceeds MAX_INPUT_LENGTH
  */
 export function extractImages(markdown: string): Array<{
   alt: string
   url: string
   title?: string
 }> {
+  // Input length validation (CWE-1333 defense-in-depth)
+  if (markdown.length > MAX_INPUT_LENGTH) {
+    throw new Error(`Input too long: ${markdown.length} > ${MAX_INPUT_LENGTH}`)
+  }
+
   // Fixed ReDoS vulnerability (CWE-1333):
-  // - [^\]]*     → [^\[\]]*   (exclude both brackets, prevents nested bracket backtracking)
-  // - [^)]+?    → [^\s)]+    (URLs are non-whitespace, more deterministic)
-  // - [^"]+     → [^"]*      (allow empty titles)
-  const imageRegex = /!\[([^\[\]]*)\]\(([^\s)]+)(?:\s+"([^"]*)")?\)/g
+  // - [^\]]*     → [^\[\]]{0,500}   (exclude both brackets, limit length, prevents backtracking)
+  // - [^)]+?    → [^\s)]{1,2000}   (URLs are non-whitespace, bounded length)
+  // - [^"]+     → [^"]{0,200}      (bounded title length)
+  // Bounded quantifiers prevent catastrophic backtracking on malicious input
+  const imageRegex = /!\[([^\[\]]{0,500})\]\(([^\s)]{1,2000})(?:\s+"([^"]{0,200})")?\)/g
   const images: Array<{ alt: string; url: string; title?: string }> = []
   let match: RegExpExecArray | null
 
@@ -323,22 +356,22 @@ export function markdownToFormattedText(markdown: string): string {
   // Convert headings (uses shared HEADING_PATTERN to keep regexes in sync)
   text = text.replace(createHeadingRegex(), '\n$2\n')
 
-  // Convert bold
-  text = text.replace(/\*\*([^*]+)\*\*/g, '$1')
-  text = text.replace(/__([^_]+)__/g, '$1')
+  // Convert bold (bounded quantifiers prevent ReDoS)
+  text = text.replace(/\*\*([^*]{1,500})\*\*/g, '$1')
+  text = text.replace(/__([^_]{1,500})__/g, '$1')
 
-  // Convert italic
-  text = text.replace(/\*([^*]+)\*/g, '$1')
-  text = text.replace(/_([^_]+)_/g, '$1')
+  // Convert italic (bounded quantifiers prevent ReDoS)
+  text = text.replace(/\*([^*]{1,500})\*/g, '$1')
+  text = text.replace(/_([^_]{1,500})_/g, '$1')
 
-  // Convert code
-  text = text.replace(/`([^`]+)`/g, '"$1"')
+  // Convert code (bounded quantifier prevents ReDoS)
+  text = text.replace(/`([^`]{1,500})`/g, '"$1"')
 
-  // Convert links (fixed ReDoS: exclude both brackets, use non-whitespace for URLs)
-  text = text.replace(/\[([^\[\]]+)\]\([^\s)]+\)/g, '$1')
+  // Convert links (fixed ReDoS: bounded quantifiers prevent backtracking)
+  text = text.replace(/\[([^\[\]]{1,500})\]\([^\s)]{1,2000}\)/g, '$1')
 
-  // Convert images (fixed ReDoS: exclude both brackets, use non-whitespace for URLs)
-  text = text.replace(/!\[([^\[\]]*)\]\([^\s)]+\)/g, '[Image: $1]')
+  // Convert images (fixed ReDoS: bounded quantifiers prevent backtracking)
+  text = text.replace(/!\[([^\[\]]{0,500})\]\([^\s)]{1,2000}\)/g, '[Image: $1]')
 
   // Convert lists
   text = text.replace(/^\s*[-*+]\s+/gm, '• ')
@@ -360,16 +393,16 @@ export function markdownToFormattedText(markdown: string): string {
  */
 export function containsMarkdown(text: string): boolean {
   const markdownPatterns = [
-    /^#{1,6}\s+/m,              // Headings
-    /\*\*[^*]+\*\*/,            // Bold
-    /_[^_]+_/,                  // Italic
-    /`[^`]+`/,                  // Code
-    /\[[^\[\]]+\]\([^\s)]+\)/,  // Links (fixed ReDoS: exclude both brackets, non-whitespace URLs)
-    /!\[[^\[\]]*\]\([^\s)]+\)/, // Images (fixed ReDoS: exclude both brackets, non-whitespace URLs)
-    /^\s*[-*+]\s+/m,            // Unordered lists
-    /^\s*\d+\.\s+/m,            // Ordered lists
-    /^>\s+/m,                   // Blockquotes
-    /```[\s\S]*?```/,           // Code blocks
+    /^#{1,6}\s+/m,                       // Headings
+    /\*\*[^*]{1,500}\*\*/,               // Bold (bounded)
+    /_[^_]{1,500}_/,                     // Italic (bounded)
+    /`[^`]{1,500}`/,                     // Code (bounded)
+    /\[[^\[\]]{1,500}\]\([^\s)]{1,2000}\)/,  // Links (bounded quantifiers prevent ReDoS)
+    /!\[[^\[\]]{0,500}\]\([^\s)]{1,2000}\)/, // Images (bounded quantifiers prevent ReDoS)
+    /^\s*[-*+]\s+/m,                     // Unordered lists
+    /^\s*\d+\.\s+/m,                     // Ordered lists
+    /^>\s+/m,                            // Blockquotes
+    /```[\s\S]{0,50000}?```/,            // Code blocks (bounded, non-greedy)
   ]
 
   return markdownPatterns.some(pattern => pattern.test(text))
