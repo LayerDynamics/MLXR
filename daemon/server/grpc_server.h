@@ -38,6 +38,11 @@ public:
         bool enable_reflection = true;              // For grpc_cli
         std::string unix_socket_path = "";          // Optional UDS binding
 
+        // Input validation limits (configurable to prevent abuse)
+        int max_prompt_length = 32768;              // Max characters in prompt (32K default)
+        int max_messages_per_request = 100;         // Max messages in chat request
+        int max_tokens_per_request = 8192;          // Max tokens to generate
+
         // TLS/SSL configuration (optional)
         bool enable_tls = false;
         std::string server_cert_path;
@@ -87,7 +92,8 @@ private:
  */
 class GrpcServiceImpl final : public mlxrunner::v1::MLXRunnerService::Service {
 public:
-    GrpcServiceImpl(std::shared_ptr<scheduler::Scheduler> scheduler,
+    GrpcServiceImpl(const GrpcServer::Config& config,
+                    std::shared_ptr<scheduler::Scheduler> scheduler,
                     std::shared_ptr<registry::ModelRegistry> registry,
                     std::shared_ptr<telemetry::MetricsRegistry> metrics);
 
@@ -170,6 +176,7 @@ public:
         mlxrunner::v1::MetricsResponse* response) override;
 
 private:
+    GrpcServer::Config config_;
     std::shared_ptr<scheduler::Scheduler> scheduler_;
     std::shared_ptr<registry::ModelRegistry> registry_;
     std::shared_ptr<telemetry::MetricsRegistry> metrics_;
@@ -180,6 +187,11 @@ private:
     // Helper methods
     std::string GenerateRequestId() const;
     std::string GetTimestamp() const;
+
+    // Input validation
+    grpc::Status ValidatePromptLength(const std::string& prompt) const;
+    grpc::Status ValidateMessageCount(int message_count) const;
+    grpc::Status ValidateMaxTokens(int max_tokens) const;
 
     // Conversion helpers
     void ConvertModelInfo(const registry::ModelInfo& src,

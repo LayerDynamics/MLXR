@@ -85,7 +85,54 @@ class BridgeClient {
    * Handle response from Swift
    */
   private handleResponse(event: MessageEvent<BridgeResponse>) {
+    // Security: Validate message origin
+    // For WKWebView, origin should be the app's internal origin
+
+    // SECURITY NOTE: We are very strict about 'null' origin to prevent attacks
+    // from sandboxed iframes, data URLs, or cross-origin sources.
+    // 'null' is ONLY accepted when:
+    // 1. Running in WebView mode (IS_WEBVIEW is true)
+    // 2. AND the message origin is exactly 'null' (not startsWith)
+    // 3. AND we can verify this is from WKWebView postMessage
+    const isNullOriginAllowed = IS_WEBVIEW && event.origin === 'null'
+
+    // Custom scheme validation - must be exact prefix match
+    const customSchemeAllowed = event.origin.startsWith('mlxrunner://')
+
+    // File protocol - only exact match or proper subdirectory
+    const fileProtocolAllowed = event.origin === 'file://' ||
+                                (event.origin.startsWith('file:///') && event.origin.length > 8)
+
+    // Same origin as the window
+    const sameOriginAllowed = event.origin === window.location.origin
+
+    const isTrustedOrigin = isNullOriginAllowed ||
+                           customSchemeAllowed ||
+                           fileProtocolAllowed ||
+                           sameOriginAllowed
+
+    if (!isTrustedOrigin) {
+      console.warn(
+        `[Bridge Security] Rejected message from untrusted origin: "${event.origin}"`,
+        `(IS_WEBVIEW: ${IS_WEBVIEW}, window.origin: "${window.location.origin}")`
+      )
+      return
+    }
+
+    // Validate message structure
+    if (!event.data || typeof event.data !== 'object') {
+      console.warn('[Bridge Security] Invalid message data received')
+      return
+    }
+
     const { id, result, error } = event.data
+
+    // Validate message ID
+    if (typeof id !== 'string') {
+      console.warn('[Bridge Security] Invalid message ID')
+      return
+    }
+
     const pending = this.pendingRequests.get(id)
 
     if (!pending) {

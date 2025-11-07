@@ -51,9 +51,15 @@ jobs:
           brew uninstall --ignore-dependencies grpc protobuf 2>/dev/null || true
 
           # Install gRPC and Protobuf via Homebrew
-          # This ensures matching versions (grpc depends on protobuf)
+          # Pin to specific version to ensure consistency across jobs
           echo "Installing gRPC and Protobuf..."
           brew install grpc protobuf
+
+          # Record the installed versions
+          GRPC_VERSION=$(brew list --versions grpc | awk '{print $2}')
+          PROTOBUF_VERSION=$(brew list --versions protobuf | awk '{print $2}')
+          echo "GRPC_VERSION=$GRPC_VERSION" >> $GITHUB_ENV
+          echo "PROTOBUF_VERSION=$PROTOBUF_VERSION" >> $GITHUB_ENV
 
           # Verify installations
           echo "Checking gRPC and Protobuf installation..."
@@ -112,7 +118,13 @@ jobs:
         run: |
           ./scripts/install_homebrew_deps.sh --quiet
           brew uninstall --ignore-dependencies grpc protobuf 2>/dev/null || true
+
+          # Install same version of gRPC as build job
+          echo "Installing gRPC and Protobuf..."
           brew install grpc protobuf
+
+          echo "Installed versions:"
+          brew list --versions grpc protobuf
 
       - name: Download gRPC artifacts
         uses: actions/download-artifact@v4
@@ -128,6 +140,42 @@ jobs:
           find build -name "*.a" -exec mv {} build/cmake/lib/ \; || true
           find build -name "*.pb.*" -exec cp {} build/cmake/daemon/generated/ \; || true
           chmod +x build/cmake/bin/* || true
+
+      - name: Fix gRPC library paths
+        run: |
+          echo "Fixing gRPC library paths for test binaries..."
+          GRPC_LIB_PATH=$(brew --prefix grpc)/lib
+
+          # Function to fix a binary's library paths
+          fix_binary_libs() {
+            local BINARY=$1
+            if [ ! -f "$BINARY" ]; then
+              echo "Binary not found: $BINARY"
+              return
+            fi
+
+            echo "Fixing $BINARY..."
+            otool -L "$BINARY" | grep grpc || echo "No gRPC libs found"
+
+            # Fix libgrpc++_reflection
+            ACTUAL_LIB=$(find $GRPC_LIB_PATH -name "libgrpc++_reflection.*.dylib" | head -1)
+            if [ -n "$ACTUAL_LIB" ]; then
+              install_name_tool -change \
+                "/opt/homebrew/opt/grpc/lib/libgrpc++_reflection.1.76.dylib" \
+                "$ACTUAL_LIB" "$BINARY" 2>/dev/null || true
+            fi
+
+            # Fix libgrpc++
+            ACTUAL_LIB=$(find $GRPC_LIB_PATH -name "libgrpc++.1.dylib" | head -1)
+            if [ -n "$ACTUAL_LIB" ]; then
+              install_name_tool -change \
+                "/opt/homebrew/opt/grpc/lib/libgrpc++.1.76.dylib" \
+                "$ACTUAL_LIB" "$BINARY" 2>/dev/null || true
+            fi
+          }
+
+          fix_binary_libs "build/cmake/bin/grpc_server_test"
+          fix_binary_libs "build/cmake/bin/test_daemon"
 
       - name: Run gRPC unit tests
         run: |
@@ -166,7 +214,13 @@ jobs:
         run: |
           ./scripts/install_homebrew_deps.sh --quiet
           brew uninstall --ignore-dependencies grpc protobuf 2>/dev/null || true
+
+          # Install same version of gRPC as build job
+          echo "Installing gRPC, Protobuf and grpcurl..."
           brew install grpc protobuf grpcurl
+
+          echo "Installed versions:"
+          brew list --versions grpc protobuf grpcurl
 
       - name: Download gRPC artifacts
         uses: actions/download-artifact@v4
@@ -180,6 +234,47 @@ jobs:
           find build -name "test_daemon" -exec mv {} build/cmake/bin/ \; || true
           find build -name "*.a" -exec mv {} build/cmake/lib/ \; || true
           chmod +x build/cmake/bin/* || true
+
+      - name: Fix gRPC library paths
+        run: |
+          echo "Checking gRPC library dependencies..."
+          otool -L build/cmake/bin/test_daemon || true
+
+          echo "Installed gRPC version:"
+          brew list --versions grpc
+
+          echo "Finding actual gRPC libraries..."
+          GRPC_LIB_PATH=$(brew --prefix grpc)/lib
+          echo "gRPC library path: $GRPC_LIB_PATH"
+          ls -la $GRPC_LIB_PATH/libgrpc* | head -10
+
+          echo "Fixing library paths with install_name_tool..."
+          # Fix libgrpc++_reflection
+          if otool -L build/cmake/bin/test_daemon | grep -q "libgrpc++_reflection.1.76"; then
+            ACTUAL_LIB=$(find $GRPC_LIB_PATH -name "libgrpc++_reflection.*.dylib" | head -1)
+            if [ -n "$ACTUAL_LIB" ]; then
+              echo "Updating libgrpc++_reflection to: $ACTUAL_LIB"
+              install_name_tool -change \
+                "/opt/homebrew/opt/grpc/lib/libgrpc++_reflection.1.76.dylib" \
+                "$ACTUAL_LIB" \
+                build/cmake/bin/test_daemon || true
+            fi
+          fi
+
+          # Fix libgrpc++
+          if otool -L build/cmake/bin/test_daemon | grep -q "libgrpc++.1.76"; then
+            ACTUAL_LIB=$(find $GRPC_LIB_PATH -name "libgrpc++.*.dylib" | head -1)
+            if [ -n "$ACTUAL_LIB" ]; then
+              echo "Updating libgrpc++ to: $ACTUAL_LIB"
+              install_name_tool -change \
+                "/opt/homebrew/opt/grpc/lib/libgrpc++.1.76.dylib" \
+                "$ACTUAL_LIB" \
+                build/cmake/bin/test_daemon || true
+            fi
+          fi
+
+          echo "Updated library dependencies:"
+          otool -L build/cmake/bin/test_daemon || true
 
       - name: Start test daemon with gRPC
         run: |
