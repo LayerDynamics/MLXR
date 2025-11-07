@@ -270,6 +270,7 @@ int main() {
   config.port = 11434;  // Ollama-compatible default port
   config.enable_cors = true;
   config.api_key = "";  // No auth for testing
+  config.thread_pool_size = 16;  // Increased for stress testing (was 4)
 
   // Create and initialize REST server
   RestServer server(config);

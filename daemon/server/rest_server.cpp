@@ -228,6 +228,23 @@ struct RestServer::Impl {
     // Create HTTP server instance
     http_server = std::make_unique<httplib::Server>();
 
+    // Configure thread pool for concurrent requests
+    // Use configured thread pool size (default: 4)
+    http_server->new_task_queue = [&server] {
+      return new httplib::ThreadPool(server->config_.thread_pool_size);
+    };
+
+    // Set connection timeouts (30 seconds read, 30 seconds write)
+    http_server->set_read_timeout(30, 0);   // 30 seconds
+    http_server->set_write_timeout(30, 0);  // 30 seconds
+
+    // Set keep-alive settings for connection reuse
+    http_server->set_keep_alive_max_count(100);  // Max 100 requests per connection
+    http_server->set_keep_alive_timeout(5);       // 5 second keep-alive timeout
+
+    // Set payload size limits (100MB max)
+    http_server->set_payload_max_length(100 * 1024 * 1024);
+
     // Setup CORS headers if enabled
     if (server->config_.enable_cors) {
       http_server->set_default_headers({
