@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Daemon Label -->
+	<key>Label</key>
+	<string>com.mlxr.mlxrunnerd</string>
+
+	<!-- Program Path (will be replaced with actual path) -->
+	<key>Program</key>
+	<string>~/Library/Application Support/MLXRunner/bin/mlxrunnerd</string>
+
+	<!-- Program Arguments -->
+	<key>ProgramArguments</key>
+	<array>
+		<string>~/Library/Application Support/MLXRunner/bin/mlxrunnerd</string>
+		<string>--config</string>
+		<string>~/Library/Application Support/MLXRunner/server.yaml</string>
+	</array>
+
+	<!-- Working Directory -->
+	<key>WorkingDirectory</key>
+	<string>~/Library/Application Support/MLXRunner</string>
+
+	<!-- Run at Load -->
+	<key>RunAtLoad</key>
+	<true/>
+
+	<!-- Keep Alive -->
+	<key>KeepAlive</key>
+	<dict>
+		<!-- Restart on crash -->
+		<key>SuccessfulExit</key>
+		<false/>
+		<!-- Don't restart on clean exit -->
+		<key>Crashed</key>
+		<true/>
+	</dict>
+
+	<!-- Restart throttle (seconds between restarts) -->
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+
+	<!-- Process Type (Background daemon) -->
+	<key>ProcessType</key>
+	<string>Background</string>
+
+	<!-- Standard Output (logs) -->
+	<key>StandardOutPath</key>
+	<string>~/Library/Logs/mlxrunnerd.out.log</string>
+
+	<!-- Standard Error (logs) -->
+	<key>StandardErrorPath</key>
+	<string>~/Library/Logs/mlxrunnerd.err.log</string>
+
+	<!-- Environment Variables -->
+	<key>EnvironmentVariables</key>
+	<dict>
+		<!-- Set appropriate environment -->
+		<key>PATH</key>
+		<string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+
+		<!-- MLX/Metal environment -->
+		<key>METAL_DEVICE_WRAPPER_TYPE</key>
+		<string>1</string>
+
+		<!-- Logging -->
+		<key>MLXR_LOG_LEVEL</key>
+		<string>info</string>
+	</dict>
+
+	<!-- Nice level (lower priority) -->
+	<key>Nice</key>
+	<integer>0</integer>
+
+	<!-- Resource Limits -->
+	<key>SoftResourceLimits</key>
+	<dict>
+		<!-- Max memory (32GB) -->
+		<key>MemoryLimit</key>
+		<integer>34359738368</integer>
+
+		<!-- Max CPU time (unlimited) -->
+		<key>CPU</key>
+		<integer>-1</integer>
+
+		<!-- Max open files -->
+		<key>NumberOfFiles</key>
+		<integer>4096</integer>
+	</dict>
+
+	<!-- Hard Resource Limits -->
+	<key>HardResourceLimits</key>
+	<dict>
+		<!-- Max memory (48GB) -->
+		<key>MemoryLimit</key>
+		<integer>51539607552</integer>
+
+		<!-- Max open files -->
+		<key>NumberOfFiles</key>
+		<integer>8192</integer>
+	</dict>
+
+	<!-- Exit timeout (allow graceful shutdown) -->
+	<key>ExitTimeOut</key>
+	<integer>30</integer>
+
+	<!-- Session Type (Background daemon) -->
+	<key>LimitLoadToSessionType</key>
+	<array>
+		<string>Aqua</string>
+		<string>Background</string>
+	</array>
+
+	<!-- Abandon process group (don't kill on logout) -->
+	<key>AbandonProcessGroup</key>
+	<true/>
+</dict>
+</plist>
